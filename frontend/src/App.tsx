@@ -1,11 +1,71 @@
 import './index.css'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type React from 'react'
 
 type View = 'chat' | 'rules' | 'history' | 'settings' | 'help'
+type ChatMessage = { id: string; from: 'user' | 'ai'; text: string }
+
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 function App() {
   const [view, setView] = useState<View>('chat')
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
+    {
+      id: 'welcome',
+      from: 'ai',
+      text:
+        "Hi, I'm your Banking Agent. I can welcome customers, check loan eligibility, and explain every decision in simple terms.\n\nAsk about a loan and I'll first confirm the customer ID. If they are new, I'll assign one, fetch their bank statements, credit card details and loans, run the eligibility rules, and show the result.",
+    },
+  ])
+  const [isSending, setIsSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const makeId = useMemo(
+    () => () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)),
+    [],
+  )
+
+  const handleSend = async (text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || isSending) return
+
+    setError(null)
+    const userMessage: ChatMessage = { id: makeId(), from: 'user', text: trimmed }
+    setMessages((prev) => [...prev, userMessage])
+    setIsSending(true)
+
+    try {
+      const response = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: trimmed }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Backend responded with status ${response.status}`)
+      }
+
+      const data = await response.json()
+      const replyText: string =
+        typeof data.reply === 'string'
+          ? data.reply
+          : 'No reply returned from the assistant. Please try again.'
+
+      const aiMessage: ChatMessage = { id: makeId(), from: 'ai', text: replyText }
+      setMessages((prev) => [...prev, aiMessage])
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unexpected error'
+      setError(message)
+      const aiMessage: ChatMessage = {
+        id: makeId(),
+        from: 'ai',
+        text: 'Sorry, something went wrong while contacting the assistant.',
+      }
+      setMessages((prev) => [...prev, aiMessage])
+    } finally {
+      setIsSending(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background text-navy-900">
@@ -14,11 +74,11 @@ function App() {
         <div className="flex flex-1 overflow-hidden relative">
           {/* Desktop Sidebar Menu */}
           <MenuBar currentView={view} onNavigate={setView} />
-          
+
           {/* Main Content */}
           {view === 'chat' ? (
             <main className="flex flex-1 overflow-hidden px-2 pb-16 sm:pb-4 pt-2 sm:pt-3 sm:px-4 md:px-6">
-              <ChatWindow />
+              <ChatWindow messages={messages} onSend={handleSend} isSending={isSending} error={error} />
             </main>
           ) : (
             <main className="flex flex-1 overflow-hidden px-2 pb-16 sm:pb-4 pt-2 sm:pt-3 sm:px-4 md:px-6">
@@ -31,7 +91,7 @@ function App() {
             </main>
           )}
         </div>
-        
+
         {/* Mobile Bottom Navigation */}
         <MobileMenuBar currentView={view} onNavigate={setView} />
       </div>
@@ -218,28 +278,40 @@ function MobileMenuBar({
   )
 }
 
-function ChatWindow() {
+function ChatWindow({
+  messages,
+  onSend,
+  isSending,
+  error,
+}: {
+  messages: ChatMessage[]
+  onSend: (text: string) => Promise<void> | void
+  isSending: boolean
+  error: string | null
+}) {
   return (
     <section className="flex min-w-0 flex-1 flex-col w-full">
       <div className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 md:px-4">
         <div className="mx-auto flex max-w-2xl w-full flex-col gap-3 items-start">
-          <AIBubble>
-            Hi, I&apos;m your Banking Agent. I can welcome customers, check
-            loan eligibility, and explain every decision in simple terms.
-            <br />
-            <br />
-            Ask about a loan and I&apos;ll first confirm the customer ID. If
-            they are new, I&apos;ll assign one, fetch their bank statements,
-            credit card details and loans, run the eligibility rules, and show
-            the result.
-          </AIBubble>
+          {messages.map((message) =>
+            message.from === 'ai' ? (
+              <AIBubble key={message.id}>{message.text}</AIBubble>
+            ) : (
+              <UserBubble key={message.id}>{message.text}</UserBubble>
+            ),
+          )}
+          {error && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] sm:text-xs text-amber-800 w-full">
+              {error}
+            </div>
+          )}
           <div className="py-2 text-center text-[10px] sm:text-[11px] text-muted w-full">
             Start by asking a question or pasting data here.
           </div>
         </div>
       </div>
 
-      <ChatComposer />
+      <ChatComposer onSend={onSend} isSending={isSending} />
     </section>
   )
 }
@@ -264,17 +336,41 @@ function UserBubble({ children }: { children: React.ReactNode }) {
   )
 }
 
-function ChatComposer() {
+function ChatComposer({
+  onSend,
+  isSending,
+}: {
+  onSend: (text: string) => Promise<void> | void
+  isSending: boolean
+}) {
+  const [value, setValue] = useState('')
+
+  const handleSubmit = async () => {
+    const text = value.trim()
+    if (!text) return
+    setValue('')
+    await onSend(text)
+  }
+
   return (
     <div className="px-2 py-2 sm:px-3 sm:py-2 flex-shrink-0">
       <div className="flex items-end gap-2 rounded-xl sm:rounded-2xl border border-navy-200 bg-white px-2 py-2 sm:px-3 sm:py-2 text-xs sm:text-sm shadow-sm">
         <input
           className="flex-1 border-0 bg-transparent text-xs sm:text-sm text-navy-900 outline-none placeholder:text-muted min-w-0"
           placeholder="Ask to check eligibility, explain the score..."
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              handleSubmit()
+            }
+          }}
         />
         <button 
           className="rounded-lg bg-navy-100 p-1.5 sm:px-2 sm:py-1 text-navy-600 hover:bg-navy-200 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
           aria-label="Upload file"
+          type="button"
         >
           <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -282,7 +378,10 @@ function ChatComposer() {
         </button>
         <button
           aria-label="Send message"
-          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors shadow-sm flex-shrink-0"
+          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors shadow-sm flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+          type="button"
+          onClick={handleSubmit}
+          disabled={isSending}
         >
           <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
