@@ -62,7 +62,7 @@ class RulesTool(BaseTool):
 
 
 def build_crew(prompt: str) -> Crew:
-    llm = LLM(model="ollama/phi3", base_url="http://localhost:11434")
+    llm = LLM(model="gemini/gemini-2.5-flash", api_key="#")
 
     chatbot = Agent(
         role="Chatbot",
