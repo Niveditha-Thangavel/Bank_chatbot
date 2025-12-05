@@ -8,183 +8,232 @@ function App() {
   const [view, setView] = useState<View>('chat')
 
   return (
-    <div className="min-h-screen bg-surface text-slate-900">
-      <div className="flex h-screen max-h-screen flex-col">
-        <TopBar currentView={view} onNavigate={setView} />
-        {view === 'chat' ? (
-          <main className="flex flex-1 gap-3 overflow-hidden px-3 pb-4 pt-3 md:gap-4 md:px-6">
-            <Sidebar />
-            <ChatWindow />
-            <DecisionPanel />
-          </main>
-        ) : (
-          <main className="flex flex-1 overflow-hidden px-3 pb-4 pt-3 md:px-6">
-            <section className="mx-auto flex w-full max-w-4xl flex-1 flex-col rounded-2xl border border-slate-200 bg-white p-4 md:p-6">
-              {view === 'rules' && <RulesPage />}
-              {view === 'history' && <HistoryPage />}
-              {view === 'settings' && <SettingsPage />}
-              {view === 'help' && <HelpPage />}
-            </section>
-          </main>
-        )}
+    <div className="min-h-screen bg-background text-navy-900">
+      <div className="flex h-screen max-h-screen flex-col overflow-hidden">
+        <TopBar />
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* Desktop Sidebar Menu */}
+          <MenuBar currentView={view} onNavigate={setView} />
+          
+          {/* Main Content */}
+          {view === 'chat' ? (
+            <main className="flex flex-1 overflow-hidden px-2 pb-16 sm:pb-4 pt-2 sm:pt-3 sm:px-4 md:px-6">
+              <ChatWindow />
+            </main>
+          ) : (
+            <main className="flex flex-1 overflow-hidden px-2 pb-16 sm:pb-4 pt-2 sm:pt-3 sm:px-4 md:px-6">
+              <section className="mx-auto flex w-full max-w-4xl flex-1 flex-col rounded-lg sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 md:p-6 shadow-sm overflow-y-auto">
+                {view === 'rules' && <RulesPage />}
+                {view === 'history' && <HistoryPage />}
+                {view === 'settings' && <SettingsPage />}
+                {view === 'help' && <HelpPage />}
+              </section>
+            </main>
+          )}
+        </div>
+        
+        {/* Mobile Bottom Navigation */}
+        <MobileMenuBar currentView={view} onNavigate={setView} />
       </div>
     </div>
   )
 }
 
-function TopBar({
+function TopBar() {
+  return (
+    <header className="flex items-center justify-between border-b border-navy-200 bg-white px-3 py-2 sm:px-4 sm:py-3 md:px-6 shadow-sm flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary-600 to-primary-700 text-xs sm:text-sm font-bold text-white shadow-sm">
+          LC
+        </div>
+        <div className="flex flex-col">
+          <span className="text-xs sm:text-sm font-semibold tracking-tight text-navy-900">
+            Banking Agent
+          </span>
+          <span className="hidden sm:block text-xs text-muted">
+            Welcome customers, check eligibility, and answer questions
+          </span>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+function MenuBar({
   currentView,
   onNavigate,
 }: {
   currentView: View
   onNavigate: (view: View) => void
 }) {
+  const menuItems = [
+    { 
+      id: 'chat' as View, 
+      label: 'Chat', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      )
+    },
+    { 
+      id: 'history' as View, 
+      label: 'History', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+    { 
+      id: 'rules' as View, 
+      label: 'Rules', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      )
+    },
+    { 
+      id: 'settings' as View, 
+      label: 'Settings', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      )
+    },
+    { 
+      id: 'help' as View, 
+      label: 'Help', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+  ]
+
   return (
-    <header className="flex items-center justify-between border-b border-primary/10 bg-gradient-to-r from-primary via-primary/95 to-accent px-4 py-2 text-white shadow-sm md:px-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-xs font-semibold">
-          LC
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-semibold tracking-tight text-white">
-            Loan Checker Agent
-          </span>
-          <span className="text-xs text-blue-100">
-            Welcome customers, check eligibility, and answer questions
-          </span>
-        </div>
-      </div>
-      <nav className="hidden items-center gap-4 text-xs text-blue-100 md:flex">
-        <TopNavItem
-          label="Chat"
-          active={currentView === 'chat'}
-          onClick={() => onNavigate('chat')}
-        />
-        <TopNavItem
-          label="Rules"
-          active={currentView === 'rules'}
-          onClick={() => onNavigate('rules')}
-        />
-        <TopNavItem
-          label="History"
-          active={currentView === 'history'}
-          onClick={() => onNavigate('history')}
-        />
-        <TopNavItem
-          label="Settings"
-          active={currentView === 'settings'}
-          onClick={() => onNavigate('settings')}
-        />
-        <TopNavItem
-          label="Help center"
-          active={currentView === 'help'}
-          onClick={() => onNavigate('help')}
-        />
+    <aside className="hidden sm:flex w-20 flex-none flex-col border-r border-navy-200 bg-white md:w-56">
+      <nav className="flex flex-col gap-1 p-2">
+        {menuItems.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onNavigate(item.id)}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+              currentView === item.id
+                ? 'bg-primary-50 text-primary-700 shadow-sm'
+                : 'text-navy-600 hover:bg-navy-50 hover:text-navy-900'
+            }`}
+          >
+            <span className="flex-shrink-0">{item.icon}</span>
+            <span className="hidden md:inline">{item.label}</span>
+          </button>
+        ))}
       </nav>
-    </header>
-  )
-}
-
-function TopNavItem({
-  label,
-  active,
-  onClick,
-}: {
-  label: string
-  active?: boolean
-  onClick?: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition ${
-        active
-          ? 'bg-white/90 text-primary'
-          : 'text-blue-100/80 hover:bg-white/20 hover:text-white'
-      }`}
-    >
-      <span>{label}</span>
-    </button>
-  )
-}
-
-function Sidebar() {
-  return (
-    <aside className="hidden w-64 flex-none flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-3 text-xs lg:flex">
-      <div>
-        <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
-          Session
-        </p>
-        <h2 className="mt-1 text-sm font-semibold text-slate-50">
-          Customer context
-        </h2>
-      </div>
-
-      <div className="space-y-2">
-        <label className="block text-[11px] text-slate-500">
-          Customer ID
-          <div className="mt-1 flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs">
-            <input
-              className="flex-1 border-0 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400"
-              placeholder="e.g. CUST-102938"
-            />
-            <button className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold text-white">
-              Load
-            </button>
-          </div>
-        </label>
-
-        <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-          <Stat label="Monthly income" value="₹1,20,000" />
-          <Stat label="Utilization" value="42%" />
-          <Stat label="Active loans" value="3" />
-          <Stat label="Score band" value="Good" />
-        </div>
-      </div>
-
-      <div className="mt-3 rounded-2xl border border-accent/30 bg-accent/10 p-3 text-[11px] text-slate-700">
-        <p className="mb-1 font-medium text-slate-900">
-          Upload bank / credit statements
-        </p>
-        <div className="mt-2 flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-accent/60 bg-white px-3 py-4 text-center">
-          <p className="text-[11px] text-slate-600">
-            Drag &amp; drop PDF, CSV, or images
-          </p>
-          <p className="text-[10px] text-slate-400">
-            Auto-extracts transactions &amp; KYC markers
-          </p>
-        </div>
-      </div>
     </aside>
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function MobileMenuBar({
+  currentView,
+  onNavigate,
+}: {
+  currentView: View
+  onNavigate: (view: View) => void
+}) {
+  const menuItems = [
+    { 
+      id: 'chat' as View, 
+      label: 'Chat', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      )
+    },
+    { 
+      id: 'history' as View, 
+      label: 'History', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+    { 
+      id: 'rules' as View, 
+      label: 'Rules', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      )
+    },
+    { 
+      id: 'settings' as View, 
+      label: 'Settings', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      )
+    },
+    { 
+      id: 'help' as View, 
+      label: 'Help', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+  ]
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5">
-      <p className="text-[10px] text-slate-500">{label}</p>
-      <p className="text-xs font-semibold text-slate-900">{value}</p>
-    </div>
+    <nav className="sm:hidden fixed bottom-0 left-0 right-0 border-t border-navy-200 bg-white z-50 safe-area-inset-bottom">
+      <div className="grid grid-cols-5 h-16">
+        {menuItems.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onNavigate(item.id)}
+            className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[44px] ${
+              currentView === item.id
+                ? 'text-primary-700'
+                : 'text-navy-600'
+            }`}
+            aria-label={item.label}
+          >
+            <span className="flex-shrink-0">{item.icon}</span>
+            <span className="text-[10px] font-medium">{item.label}</span>
+          </button>
+        ))}
+      </div>
+    </nav>
   )
 }
 
 function ChatWindow() {
   return (
-    <section className="flex min-w-0 flex-1 flex-col">
-      <div className="flex-1 overflow-auto px-3 py-3 text-sm sm:px-4">
-        <div className="mx-auto flex max-w-2xl flex-col gap-3">
+    <section className="flex min-w-0 flex-1 flex-col w-full">
+      <div className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 md:px-4">
+        <div className="mx-auto flex max-w-2xl w-full flex-col gap-3 items-start">
           <AIBubble>
-            Hi, I&apos;m your Loan Checker Agent. I can welcome customers, check
+            Hi, I&apos;m your Banking Agent. I can welcome customers, check
             loan eligibility, and explain every decision in simple terms.
             <br />
             <br />
             Ask about a loan and I&apos;ll first confirm the customer ID. If
             they are new, I&apos;ll assign one, fetch their bank statements,
             credit card details and loans, run the eligibility rules, and show
-            the result in the panel on the right.
+            the result.
           </AIBubble>
-          <div className="py-2 text-center text-[11px] text-slate-400">
+          <div className="py-2 text-center text-[10px] sm:text-[11px] text-muted w-full">
             Start by asking a question or pasting data here.
           </div>
         </div>
@@ -197,8 +246,8 @@ function ChatWindow() {
 
 function AIBubble({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-2">
-      <div className="max-w-xl text-xs text-slate-900">
+    <div className="flex items-start justify-start gap-2 w-full">
+      <div className="max-w-[85%] sm:max-w-xl text-sm sm:text-base text-navy-700 leading-relaxed text-left break-words">
         {children}
       </div>
     </div>
@@ -207,8 +256,8 @@ function AIBubble({ children }: { children: React.ReactNode }) {
 
 function UserBubble({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-end gap-2">
-      <div className="max-w-xl rounded-2xl bg-gradient-to-r from-primary to-accent px-3 py-2 text-xs text-white shadow-sm">
+    <div className="flex items-start justify-end gap-2 w-full">
+      <div className="max-w-[85%] sm:max-w-xl rounded-2xl bg-gradient-to-r from-primary-600 to-primary-700 px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-white shadow-sm break-words">
         {children}
       </div>
     </div>
@@ -217,132 +266,29 @@ function UserBubble({ children }: { children: React.ReactNode }) {
 
 function ChatComposer() {
   return (
-    <div className="px-3 py-2">
-      <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs">
+    <div className="px-2 py-2 sm:px-3 sm:py-2 flex-shrink-0">
+      <div className="flex items-end gap-2 rounded-xl sm:rounded-2xl border border-navy-200 bg-white px-2 py-2 sm:px-3 sm:py-2 text-xs sm:text-sm shadow-sm">
         <input
-          className="flex-1 border-0 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400"
-          placeholder="Ask to check eligibility, explain the score, or analyse an uploaded statement…"
+          className="flex-1 border-0 bg-transparent text-xs sm:text-sm text-navy-900 outline-none placeholder:text-muted min-w-0"
+          placeholder="Ask to check eligibility, explain the score..."
         />
-        <button className="rounded-full bg-slate-100 px-2 py-1 text-[13px] text-slate-500">
-          ⬆
+        <button 
+          className="rounded-lg bg-navy-100 p-1.5 sm:px-2 sm:py-1 text-navy-600 hover:bg-navy-200 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+          aria-label="Upload file"
+        >
+          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
         </button>
         <button
           aria-label="Send message"
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white text-sm"
+          className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors shadow-sm flex-shrink-0"
         >
-          ➤
+          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
         </button>
       </div>
-    </div>
-  )
-}
-
-function DecisionPanel() {
-  return (
-    <aside className="hidden w-80 flex-none flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-xs xl:flex">
-      <div>
-        <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
-          Decision
-        </p>
-        <h2 className="mt-1 text-sm font-semibold text-slate-900">
-          Eligibility verdict
-        </h2>
-      </div>
-
-      <div className="rounded-2xl bg-gradient-to-br from-orange-100 via-white to-pink-50 p-3 text-xs text-slate-900">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] text-slate-600">Current status</span>
-          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-700">
-            Confidence 78%
-          </span>
-        </div>
-        <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-pink-100 px-3 py-1 text-[11px] font-semibold text-red-600">
-          <span className="text-xs">⚠</span>
-          REVIEW
-        </div>
-        <p className="mt-2 text-[11px] text-slate-700">
-          Eligible in principle, but high recent utilization and 2 late
-          payments trigger a manual review requirement.
-        </p>
-      </div>
-
-      <RuleInspector />
-
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-700">
-        <div className="mb-1 flex items-center justify-between">
-          <span className="font-medium text-slate-900">Actions</span>
-        </div>
-        <div className="mt-2 space-y-1.5">
-          <button className="w-full rounded-full bg-primary px-3 py-1.5 text-[11px] font-semibold text-white">
-            Export decision JSON
-          </button>
-          <button className="w-full rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-700">
-            Re-run with different rules
-          </button>
-        </div>
-      </div>
-    </aside>
-  )
-}
-
-function RuleInspector() {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-3 text-[11px] text-slate-700">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="font-medium text-slate-900">Rule checklist</span>
-        <span className="text-[10px] text-slate-500">12 rules</span>
-      </div>
-      <div className="mt-1 space-y-1.5">
-        <RuleRow
-          label="Income stability &gt;= 6 months"
-          status="pass"
-          evidence="Salary credits from same employer for 14 months."
-        />
-        <RuleRow
-          label="Credit utilization &lt; 50%"
-          status="borderline"
-          evidence="Current utilization 47% with rising trend."
-        />
-        <RuleRow
-          label="No 60+ DPD in last 12 months"
-          status="fail"
-          evidence="1 instance of 62 DPD on card ending ••49."
-        />
-      </div>
-    </div>
-  )
-}
-
-function RuleRow(props: {
-  label: string
-  status: 'pass' | 'borderline' | 'fail'
-  evidence: string
-}) {
-  const { label, status, evidence } = props
-  const color =
-    status === 'pass'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      : status === 'borderline'
-        ? 'bg-amber-50 text-amber-700 border-amber-200'
-        : 'bg-red-50 text-red-700 border-red-200'
-
-  const symbol = status === 'pass' ? '✓' : status === 'borderline' ? '!' : '✕'
-
-  return (
-    <div className="group rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-white">
-      <div className="flex items-center gap-2">
-        <span
-          className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${color}`}
-        >
-          {symbol}
-        </span>
-        <span className="flex-1 text-[11px] font-medium text-slate-900">
-          {label}
-        </span>
-      </div>
-      <p className="mt-0.5 text-[10px] text-slate-500 group-hover:text-slate-700">
-        {evidence}
-      </p>
     </div>
   )
 }
@@ -350,14 +296,14 @@ function RuleRow(props: {
 function RulesPage() {
   return (
     <>
-      <h1 className="text-base font-semibold text-slate-900">Eligibility rules</h1>
-      <p className="mt-1 text-xs text-slate-500">
-        These are the core checks used by the Loan Checker Agent when running an
+      <h1 className="text-base sm:text-lg font-semibold text-navy-900">Eligibility rules</h1>
+      <p className="mt-1 text-xs sm:text-sm text-muted">
+        These are the core checks used by the Banking Agent when running an
         eligibility decision.
       </p>
-      <div className="mt-4 space-y-2 text-xs">
-        <p className="font-medium text-slate-800">Examples:</p>
-        <ul className="list-disc space-y-1 pl-4 text-slate-600">
+      <div className="mt-4 space-y-2 text-xs sm:text-sm">
+        <p className="font-medium text-navy-800">Examples:</p>
+        <ul className="list-disc space-y-1 pl-4 text-navy-600">
           <li>Income stability &ge; 6 months with consistent salary credits.</li>
           <li>Credit utilization ideally below 50% across open credit lines.</li>
           <li>No severe delinquencies (60+ DPD) in the last 12 months.</li>
@@ -370,14 +316,30 @@ function RulesPage() {
 function HistoryPage() {
   return (
     <>
-      <h1 className="text-base font-semibold text-slate-900">Recent decisions</h1>
-      <p className="mt-1 text-xs text-slate-500">
+      <h1 className="text-base sm:text-lg font-semibold text-navy-900">Recent decisions</h1>
+      <p className="mt-1 text-xs sm:text-sm text-muted">
         A simple overview of past eligibility checks. You can later replace this
         with real data from your backend.
       </p>
-      <ul className="mt-4 space-y-1 text-xs text-slate-600">
-        <li>CUST-102938 · REVIEW · Personal loan · Today</li>
-        <li>CUST-948572 · APPROVE · Credit card · Yesterday</li>
+      <ul className="mt-4 space-y-2 text-xs sm:text-sm text-navy-600">
+        <li className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 rounded-lg border border-navy-200 bg-white p-2 sm:px-3 sm:py-2">
+          <span className="font-medium">CUST-102938</span>
+          <span className="hidden sm:inline text-muted">·</span>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] sm:text-xs font-medium text-amber-800 inline-flex w-fit">REVIEW</span>
+          <span className="hidden sm:inline text-muted">·</span>
+          <span>Personal loan</span>
+          <span className="hidden sm:inline text-muted">·</span>
+          <span className="text-muted">Today</span>
+        </li>
+        <li className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 rounded-lg border border-navy-200 bg-white p-2 sm:px-3 sm:py-2">
+          <span className="font-medium">CUST-948572</span>
+          <span className="hidden sm:inline text-muted">·</span>
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] sm:text-xs font-medium text-emerald-800 inline-flex w-fit">APPROVE</span>
+          <span className="hidden sm:inline text-muted">·</span>
+          <span>Credit card</span>
+          <span className="hidden sm:inline text-muted">·</span>
+          <span className="text-muted">Yesterday</span>
+        </li>
       </ul>
     </>
   )
@@ -386,9 +348,9 @@ function HistoryPage() {
 function SettingsPage() {
   return (
     <>
-      <h1 className="text-base font-semibold text-slate-900">Settings</h1>
-      <p className="mt-1 text-xs text-slate-500">
-        Configure how the Loan Checker Agent behaves. This is a placeholder
+      <h1 className="text-base sm:text-lg font-semibold text-navy-900">Settings</h1>
+      <p className="mt-1 text-xs sm:text-sm text-muted">
+        Configure how the Banking Agent behaves. This is a placeholder
         where you can add real settings (rulesets, thresholds, notification
         options) later.
       </p>
@@ -399,15 +361,15 @@ function SettingsPage() {
 function HelpPage() {
   return (
     <>
-      <h1 className="text-base font-semibold text-slate-900">Help center</h1>
-      <p className="mt-1 text-xs text-slate-500">
-        Brief guidance for analysts using the Loan Checker Agent.
+      <h1 className="text-base sm:text-lg font-semibold text-navy-900">Help center</h1>
+      <p className="mt-1 text-xs sm:text-sm text-muted">
+        Brief guidance for analysts using the Banking Agent.
       </p>
-      <div className="mt-4 space-y-1 text-xs text-slate-600">
+      <div className="mt-4 space-y-2 text-xs sm:text-sm text-navy-600">
         <p>Use Chat to welcome customers and answer open questions.</p>
         <p>
           When asked about loan eligibility, the agent will request a customer
-          ID, fetch their data, run the rules, and show the result on the right.
+          ID, fetch their data, run the rules, and show the result.
         </p>
       </div>
     </>
@@ -415,4 +377,3 @@ function HelpPage() {
 }
 
 export default App
-
