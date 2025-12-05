@@ -1,59 +1,25 @@
 from crewai import Agent,Task,Crew,LLM
-from crewai.tools import BaseTool,SerperDevTool
+
 import os
-
-os.environ["SERPER_API_KEY"] = "979682778de4ca972dfb070cd7d6d67906f33b15"
-
-search_tool = SerperDevTool()
-
-import json
+import json 
+from crewai.tools import BaseTool
+from crewai_tools import SerperDevTool
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+prompt = input("Enter the prompt: ")
 
 class FetchTool(BaseTool):
     name: str = "FetchBankStatement"
     description: str = "Fetch the bank statement for a specific customer_id"
 
     def _run(self, customer_id: str):
-        with open("bank_statement.json", "r") as f:
+        with open("bank_statements.json", "r") as f:
             data = json.load(f)
 
         for customer in data["bank_statements"]:
             if customer["customer_id"] == customer_id:
+                print(customer)
                 return customer
 
         return {"error": "Customer not found"}
@@ -75,7 +41,7 @@ DEFAULT_RULES_TEXT = (
     "11. Credit History Strength: Customer must show reliable and stable historical credit behavior\n"
     "Decision rule (exact mapping):\n"
     "- If number_of_rules_satisfied == 11 -> decision = \"APPROVE\"\n"
-    "- If 8 <= number_of_rules_satisfied < 1 -> decision = \"REVIEW\"\n"
+    "- If 8 <= number_of_rules_satisfied < 11 -> decision = \"REVIEW\"\n"
     "- If number_of_rules_satisfied < 8 -> decision = \"REJECT\"\n\n"
     "OUTPUT REQUIREMENT: Return exactly the JSON object {\"decision\":\"APPROVE|REVIEW|REJECT\",\"reason\":\"string\"} and NOTHING else."
 )
@@ -95,7 +61,7 @@ llm = LLM(
     base_url="http://localhost:11434"
 )
 
-prompt = ""
+
 
 chatbot = Agent(role = "Chatbot",
         goal = f" Answer and accomplish the task in '{prompt}' ",
@@ -105,8 +71,19 @@ chatbot = Agent(role = "Chatbot",
     )
 
 chatbot_task = Task(
-    description= "Answer to all the question asked by the user in prompt, and accomplish the task mentioned in the prompt by using the right tools for the right task",
+    description= f"""Answer to all the question asked by the user in {prompt}, and accomplish the task mentioned in the {prompt} by using the right tools for the right task. Use fetch tool to get the customer data using the customer id in the prompt for display details or similair task
+   if user asked to check eligibility of loan or similair task use the rules tool to fetch the tool and apply it on the customer data to provide the final decision""",
     expected_output="Answer to the question with the tool output",
     agent = chatbot
 
 )
+
+crew = Crew(
+    agents=[chatbot],
+    tasks=[chatbot_task],
+    verbose=True
+
+)
+
+result = crew.kickoff()
+print(result)
