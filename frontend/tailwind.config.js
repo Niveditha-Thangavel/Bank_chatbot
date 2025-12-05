@@ -7,13 +7,13 @@ export default {
         sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       colors: {
-        primary: '#2563EB', // chatgpt-like soft blue
-        accent: '#22C1C3', // aqua accent
-        surface: '#F3F4F6', // light gray background
+        primary: '#3B82F6', // vibrant blue (Chase card style)
+        accent: '#14B8A6', // teal/green (Citi card style)
+        surface: '#FFFFFF', // clean white background
         muted: '#9CA3AF',
-        success: '#34D399',
-        warning: '#FBBF24',
-        danger: '#F87171',
+        success: '#10B981', // emerald green
+        warning: '#F59E0B', // amber/orange
+        danger: '#EF4444', // red
       },
       borderRadius: {
         sm: '10px',
