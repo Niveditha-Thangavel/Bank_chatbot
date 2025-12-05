@@ -1,5 +1,10 @@
 from crewai import Agent,Task,Crew,LLM
-from crewai.tools import BaseTool
+from crewai.tools import BaseTool,SerperDevTool
+import os
+
+os.environ["SERPER_API_KEY"] = "979682778de4ca972dfb070cd7d6d67906f33b15"
+
+search_tool = SerperDevTool()
 
 import json
 

@@ -40,7 +40,7 @@ function TopBar({
   onNavigate: (view: View) => void
 }) {
   return (
-    <header className="flex items-center justify-between border-b border-primary/10 bg-gradient-to-r from-primary/90 via-primary to-accent px-4 py-2 text-white shadow-sm md:px-6">
+    <header className="flex items-center justify-between border-b border-primary/10 bg-gradient-to-r from-primary via-primary/95 to-accent px-4 py-2 text-white shadow-sm md:px-6">
       <div className="flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-xs font-semibold">
           LC
@@ -49,12 +49,12 @@ function TopBar({
           <span className="text-sm font-semibold tracking-tight text-white">
             Loan Checker Agent
           </span>
-          <span className="text-xs text-sky-100">
+          <span className="text-xs text-blue-100">
             Welcome customers, check eligibility, and answer questions
           </span>
         </div>
       </div>
-      <nav className="hidden items-center gap-4 text-xs text-sky-100 md:flex">
+      <nav className="hidden items-center gap-4 text-xs text-blue-100 md:flex">
         <TopNavItem
           label="Chat"
           active={currentView === 'chat'}
@@ -101,7 +101,7 @@ function TopNavItem({
       className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition ${
         active
           ? 'bg-white/90 text-primary'
-          : 'text-sky-100/80 hover:bg-white/20 hover:text-white'
+          : 'text-blue-100/80 hover:bg-white/20 hover:text-white'
       }`}
     >
       <span>{label}</span>
@@ -171,12 +171,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function ChatWindow() {
   return (
-    <section className="flex min-w-0 flex-1 flex-col rounded-2xl border border-slate-200 bg-white/95">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white via-sky-50 to-violet-50 px-4 py-3">
-        <p className="text-sm font-semibold text-slate-900">Chat</p>
-        <span className="text-[11px] text-primary/80">Loan Checker Agent</span>
-      </div>
-
+    <section className="flex min-w-0 flex-1 flex-col">
       <div className="flex-1 overflow-auto px-3 py-3 text-sm sm:px-4">
         <div className="mx-auto flex max-w-2xl flex-col gap-3">
           <AIBubble>
@@ -203,10 +198,7 @@ function ChatWindow() {
 function AIBubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2">
-      <div className="mt-1 flex h-7 w-7 flex-none items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
-        AI
-      </div>
-      <div className="max-w-xl rounded-2xl bg-sky-50 px-3 py-2 text-xs text-slate-900 ring-1 ring-sky-100">
+      <div className="max-w-xl text-xs text-slate-900">
         {children}
       </div>
     </div>
@@ -216,7 +208,7 @@ function AIBubble({ children }: { children: React.ReactNode }) {
 function UserBubble({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-start justify-end gap-2">
-      <div className="max-w-xl rounded-2xl bg-gradient-to-r from-violet-500 to-primary px-3 py-2 text-xs text-white shadow-sm">
+      <div className="max-w-xl rounded-2xl bg-gradient-to-r from-primary to-accent px-3 py-2 text-xs text-white shadow-sm">
         {children}
       </div>
     </div>
@@ -225,7 +217,7 @@ function UserBubble({ children }: { children: React.ReactNode }) {
 
 function ChatComposer() {
   return (
-    <div className="border-t border-slate-200 bg-slate-50 px-3 py-2">
+    <div className="px-3 py-2">
       <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs">
         <input
           className="flex-1 border-0 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400"
@@ -257,14 +249,14 @@ function DecisionPanel() {
         </h2>
       </div>
 
-      <div className="rounded-2xl bg-gradient-to-br from-amber-100 via-white to-amber-50 p-3 text-xs text-slate-900">
+      <div className="rounded-2xl bg-gradient-to-br from-orange-100 via-white to-pink-50 p-3 text-xs text-slate-900">
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-slate-600">Current status</span>
           <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-700">
             Confidence 78%
           </span>
         </div>
-        <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-700">
+        <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-pink-100 px-3 py-1 text-[11px] font-semibold text-red-600">
           <span className="text-xs">⚠</span>
           REVIEW
         </div>
