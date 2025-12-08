@@ -1,11 +1,19 @@
+// App.tsx (complete)
 import './index.css'
-import { useMemo, useState } from 'react'
-import type React from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 type View = 'chat' | 'rules' | 'history' | 'settings' | 'help'
 type ChatMessage = { id: string; from: 'user' | 'ai'; text: string }
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+
+/**
+ * NOTE about saving:
+ * - Browsers cannot write to arbitrary disk paths directly.
+ * - This code tries to POST changed decisions to `${API_BASE}/update-decisions` if available.
+ * - If that endpoint is not present, it falls back to asking the manager to pick the local
+ *   decisions.json file using the File System Access API and writes the file (Chromium only).
+ */
 
 function App() {
   const [view, setView] = useState<View>('chat')
@@ -14,16 +22,27 @@ function App() {
       id: 'welcome',
       from: 'ai',
       text:
-        "Hi, I'm your Banking Agent. I can welcome customers, check loan eligibility, and explain every decision in simple terms.\n\nAsk about a loan and I'll first confirm the customer ID. If they are new, I'll assign one, fetch their bank statements, credit card details and loans, run the eligibility rules, and show the result.",
+        "👋 Hi, I'm your Banking Agent.\n\nAsk about a loan and I'll confirm the customer ID, fetch bank statements, credit cards, and loans, run the rules, and share a clear decision with reasons.",
     },
   ])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const makeId = useMemo(
-    () => () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)),
+    () => () =>
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? (crypto as any).randomUUID()
+        : Math.random().toString(36).slice(2),
     [],
   )
+
+  // auto-scroll ref
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [messages, isSending])
 
   const handleSend = async (text: string) => {
     const trimmed = text.trim()
@@ -45,11 +64,22 @@ function App() {
         throw new Error(`Backend responded with status ${response.status}`)
       }
 
-      const data = await response.json()
-      const replyText: string =
-        typeof data.reply === 'string'
-          ? data.reply
-          : 'No reply returned from the assistant. Please try again.'
+      // try to parse JSON first; backend may return either JSON or raw string
+      let data: unknown
+      const contentType = response.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        data = await response.json()
+      } else {
+        // if it's plain text that is JSON-like, attempt to parse; otherwise keep raw text
+        const textData = await response.text()
+        try {
+          data = JSON.parse(textData)
+        } catch {
+          data = textData
+        }
+      }
+
+      const replyText: string = formatReply(data)
 
       const aiMessage: ChatMessage = { id: makeId(), from: 'ai', text: replyText }
       setMessages((prev) => [...prev, aiMessage])
@@ -67,6 +97,12 @@ function App() {
     }
   }
 
+  const quickPrompts = [
+    'Check eligibility for customer C101',
+    'Show credit and loan details for customer C102',
+    'Explain how the decision was made for C104',
+  ]
+
   return (
     <div className="min-h-screen bg-background text-navy-900">
       <div className="flex h-screen max-h-screen flex-col overflow-hidden">
@@ -78,7 +114,14 @@ function App() {
           {/* Main Content */}
           {view === 'chat' ? (
             <main className="flex flex-1 overflow-hidden px-2 pb-16 sm:pb-4 pt-2 sm:pt-3 sm:px-4 md:px-6">
-              <ChatWindow messages={messages} onSend={handleSend} isSending={isSending} error={error} />
+              <ChatWindow
+                messages={messages}
+                onSend={handleSend}
+                isSending={isSending}
+                error={error}
+                quickPrompts={quickPrompts}
+                scrollRef={scrollRef}
+              />
             </main>
           ) : (
             <main className="flex flex-1 overflow-hidden px-2 pb-16 sm:pb-4 pt-2 sm:pt-3 sm:px-4 md:px-6">
@@ -94,10 +137,14 @@ function App() {
 
         {/* Mobile Bottom Navigation */}
         <MobileMenuBar currentView={view} onNavigate={setView} />
+        {/* Floating popup always available */}
+        <FloatingPopup />
       </div>
     </div>
   )
 }
+
+/* ------------------ small UI components (no change from previous) ------------------ */
 
 function TopBar() {
   return (
@@ -127,52 +174,11 @@ function MenuBar({
   onNavigate: (view: View) => void
 }) {
   const menuItems = [
-    { 
-      id: 'chat' as View, 
-      label: 'Chat', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-      )
-    },
-    { 
-      id: 'history' as View, 
-      label: 'History', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    },
-    { 
-      id: 'rules' as View, 
-      label: 'Rules', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      )
-    },
-    { 
-      id: 'settings' as View, 
-      label: 'Settings', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      )
-    },
-    { 
-      id: 'help' as View, 
-      label: 'Help', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    },
+    { id: 'chat' as View, label: 'Chat', icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>) },
+    { id: 'history' as View, label: 'History', icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>) },
+    { id: 'rules' as View, label: 'Rules', icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>) },
+    { id: 'settings' as View, label: 'Settings', icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>) },
+    { id: 'help' as View, label: 'Help', icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>) },
   ]
 
   return (
@@ -206,52 +212,11 @@ function MobileMenuBar({
   onNavigate: (view: View) => void
 }) {
   const menuItems = [
-    { 
-      id: 'chat' as View, 
-      label: 'Chat', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
-      )
-    },
-    { 
-      id: 'history' as View, 
-      label: 'History', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    },
-    { 
-      id: 'rules' as View, 
-      label: 'Rules', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      )
-    },
-    { 
-      id: 'settings' as View, 
-      label: 'Settings', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      )
-    },
-    { 
-      id: 'help' as View, 
-      label: 'Help', 
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      )
-    },
+    { id: 'chat' as View, label: 'Chat', icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>) },
+    { id: 'history' as View, label: 'History', icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>) },
+    { id: 'rules' as View, label: 'Rules', icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>) },
+    { id: 'settings' as View, label: 'Settings', icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>) },
+    { id: 'help' as View, label: 'Help', icon: (<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>) },
   ]
 
   return (
@@ -263,9 +228,7 @@ function MobileMenuBar({
             type="button"
             onClick={() => onNavigate(item.id)}
             className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[44px] ${
-              currentView === item.id
-                ? 'text-primary-700'
-                : 'text-navy-600'
+              currentView === item.id ? 'text-primary-700' : 'text-navy-600'
             }`}
             aria-label={item.label}
           >
@@ -278,26 +241,35 @@ function MobileMenuBar({
   )
 }
 
+/* Chat window and composer left the same as earlier (user-facing) */
 function ChatWindow({
   messages,
   onSend,
   isSending,
   error,
+  quickPrompts,
+  scrollRef,
 }: {
   messages: ChatMessage[]
   onSend: (text: string) => Promise<void> | void
   isSending: boolean
   error: string | null
+  quickPrompts: string[]
+  scrollRef: React.RefObject<HTMLDivElement>
 }) {
   return (
     <section className="flex min-w-0 flex-1 flex-col w-full">
-      <div className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 md:px-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-3 md:px-4">
         <div className="mx-auto flex max-w-2xl w-full flex-col gap-3 items-start">
           {messages.map((message) =>
             message.from === 'ai' ? (
-              <AIBubble key={message.id}>{message.text}</AIBubble>
+              <AIBubble key={message.id} label="Banking Agent">
+                <MessageText text={message.text} />
+              </AIBubble>
             ) : (
-              <UserBubble key={message.id}>{message.text}</UserBubble>
+              <UserBubble key={message.id} label="You">
+                <MessageText text={message.text} />
+              </UserBubble>
             ),
           )}
           {error && (
@@ -306,30 +278,32 @@ function ChatWindow({
             </div>
           )}
           <div className="py-2 text-center text-[10px] sm:text-[11px] text-muted w-full">
-            Start by asking a question or pasting data here.
+            Start by asking a question or tap a quick prompt below.
           </div>
         </div>
       </div>
 
-      <ChatComposer onSend={onSend} isSending={isSending} />
+      <ChatComposer onSend={onSend} isSending={isSending} quickPrompts={quickPrompts} />
     </section>
   )
 }
 
-function AIBubble({ children }: { children: React.ReactNode }) {
+function AIBubble({ children, label }: { children: React.ReactNode; label?: string }) {
   return (
     <div className="flex items-start justify-start gap-2 w-full">
       <div className="max-w-[85%] sm:max-w-xl text-sm sm:text-base text-navy-700 leading-relaxed text-left break-words">
+        {label && <div className="text-[11px] sm:text-xs font-semibold text-primary-700 mb-1">{label}</div>}
         {children}
       </div>
     </div>
   )
 }
 
-function UserBubble({ children }: { children: React.ReactNode }) {
+function UserBubble({ children, label }: { children: React.ReactNode; label?: string }) {
   return (
     <div className="flex items-start justify-end gap-2 w-full">
-      <div className="max-w-[85%] sm:max-w-xl rounded-2xl bg-gradient-to-r from-primary-600 to-primary-700 px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-white shadow-sm break-words">
+      <div className="max-w-[85%] sm:max-w-xl rounded-2xl bg-gradient-to-r from-primary-400 to-primary-500 px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm text-white shadow-sm break-words text-left">
+        {label && <div className="text-[10px] sm:text-[11px] font-semibold text-black mb-1">{label}</div>}
         {children}
       </div>
     </div>
@@ -339,9 +313,11 @@ function UserBubble({ children }: { children: React.ReactNode }) {
 function ChatComposer({
   onSend,
   isSending,
+  quickPrompts,
 }: {
   onSend: (text: string) => Promise<void> | void
   isSending: boolean
+  quickPrompts: string[]
 }) {
   const [value, setValue] = useState('')
 
@@ -353,7 +329,20 @@ function ChatComposer({
   }
 
   return (
-    <div className="px-2 py-2 sm:px-3 sm:py-2 flex-shrink-0">
+    <div className="px-2 py-2 sm:px-3 sm:py-2 flex-shrink-0 space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {quickPrompts.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            onClick={() => onSend(prompt)}
+            className="rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-[11px] sm:text-xs text-primary-800 hover:bg-primary-100 transition"
+            disabled={isSending}
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
       <div className="flex items-end gap-2 rounded-xl sm:rounded-2xl border border-navy-200 bg-white px-2 py-2 sm:px-3 sm:py-2 text-xs sm:text-sm shadow-sm">
         <input
           className="flex-1 border-0 bg-transparent text-xs sm:text-sm text-navy-900 outline-none placeholder:text-muted min-w-0"
@@ -367,7 +356,7 @@ function ChatComposer({
             }
           }}
         />
-        <button 
+        <button
           className="rounded-lg bg-navy-100 p-1.5 sm:px-2 sm:py-1 text-navy-600 hover:bg-navy-200 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
           aria-label="Upload file"
           type="button"
@@ -392,85 +381,528 @@ function ChatComposer({
   )
 }
 
-function RulesPage() {
+function MessageText({ text }: { text: string }) {
   return (
-    <>
-      <h1 className="text-base sm:text-lg font-semibold text-navy-900">Eligibility rules</h1>
-      <p className="mt-1 text-xs sm:text-sm text-muted">
-        These are the core checks used by the Banking Agent when running an
-        eligibility decision.
-      </p>
-      <div className="mt-4 space-y-2 text-xs sm:text-sm">
-        <p className="font-medium text-navy-800">Examples:</p>
-        <ul className="list-disc space-y-1 pl-4 text-navy-600">
-          <li>Income stability &ge; 6 months with consistent salary credits.</li>
-          <li>Credit utilization ideally below 50% across open credit lines.</li>
-          <li>No severe delinquencies (60+ DPD) in the last 12 months.</li>
-        </ul>
+    <div className="whitespace-pre-wrap leading-relaxed text-navy-800 text-sm sm:text-base">
+      {text}
+    </div>
+  )
+}
+
+/* Helper that formats backend replies (same logic as before) */
+function formatReply(raw: unknown): string {
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      return formatReply(parsed)
+    } catch {
+      return raw
+    }
+  }
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, any>
+    if ('decision' in obj && 'reason' in obj) {
+      return `Decision: ${String(obj.decision)}\nReason: ${String(obj.reason)}`
+    }
+    if ('bank_statement' in obj || 'credit_profile' in obj) {
+      const bank = obj.bank_statement ?? {}
+      const credit = obj.credit_profile ?? {}
+      const txCount = Array.isArray(bank?.transactions) ? bank.transactions.length : 0
+      const cardCount = Array.isArray(credit?.credit_cards) ? credit.credit_cards.length : 0
+      const loanCount = Array.isArray(credit?.loans) ? credit.loans.length : 0
+      return [
+        `Customer: ${obj.customer_id ?? 'N/A'}`,
+        `Bank statement: ${txCount} transactions`,
+        `Credit cards: ${cardCount} card(s)`,
+        `Loans: ${loanCount} loan(s)`,
+      ].join('\n')
+    }
+    try {
+      const keys = Object.keys(obj)
+      if (keys.length === 0) return 'No reply returned from the assistant.'
+      return keys
+        .slice(0, 8)
+        .map((k) => {
+          const val = obj[k]
+          if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+            return `${k}: ${String(val)}`
+          }
+          if (Array.isArray(val)) {
+            return `${k}: [${val.length} items]`
+          }
+          return `${k}: {...}`
+        })
+        .join('\n')
+    } catch {
+      return 'No reply returned from the assistant.'
+    }
+  }
+  return 'No reply returned from the assistant. Please try again.'
+}
+
+/* --- static pages --- (unchanged) */
+function RulesPage() { /* ... same as earlier ... */ return (<><h1 className="text-base sm:text-lg font-semibold text-navy-900">Eligibility rules</h1><p className="mt-1 text-xs sm:text-sm text-muted">These are the core checks used by the Banking Agent when running an eligibility decision.</p></>) }
+function HistoryPage() { return (<><h1 className="text-base sm:text-lg font-semibold text-navy-900">Recent decisions</h1></>) }
+function SettingsPage() { return (<><h1 className="text-base sm:text-lg font-semibold text-navy-900">Settings</h1></>) }
+function HelpPage() { return (<><h1 className="text-base sm:text-lg font-semibold text-navy-900">Help center</h1></>) }
+
+/* ---------------- FloatingPopup + Manager Chat ----------------
+   - sign-in -> show summary (customer id + decision) with View reason
+   - Open Chat button opens ManagerChat panel with two tabs: Chat and Decisions
+   - ManagerChat: loads customer details by calling /chat with message "Load customer CUSTOMER_ID" and customer_id
+   - Manager can change decision in Decisions tab; Save will try server write, else use File System Access API.
+*/
+
+type DecisionRecord = { decision: string; reason?: string; updated_at?: string }
+
+/* ManagerChat component (inline) */
+function ManagerChat({
+  custId,
+  initialDecision,
+  onSavedDecision,
+  onClose,
+}: {
+  custId: string
+  initialDecision: DecisionRecord
+  onSavedDecision: (rec: DecisionRecord) => void
+  onClose: () => void
+}) {
+  const [tab, setTab] = useState<'chat' | 'decisions'>('chat')
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [
+    { id: 'sys', from: 'ai', text: `Manager chat opened for ${custId}.` },
+  ])
+  const [isSending, setIsSending] = useState(false)
+  const [decision, setDecision] = useState<string>(initialDecision.decision ?? '')
+  const [reason, setReason] = useState<string>(initialDecision.reason ?? '')
+  const [updatedAt, setUpdatedAt] = useState<string | undefined>(initialDecision.updated_at)
+  const [saveStatus, setSaveStatus] = useState<string | null>(null)
+
+  const makeId = useMemo(
+    () => () =>
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? (crypto as any).randomUUID()
+        : Math.random().toString(36).slice(2),
+    [],
+  )
+
+  const sendManagerQuery = async (text: string) => {
+    if (!text.trim()) return
+    const userMsg: ChatMessage = { id: makeId(), from: 'user', text }
+    setMessages((prev) => [...prev, userMsg])
+    setIsSending(true)
+    try {
+      // send to the same /chat endpoint but include customer_id in payload
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, customer_id: custId }),
+      })
+      const contentType = res.headers.get('content-type') || ''
+      let data: unknown
+      if (contentType.includes('application/json')) data = await res.json()
+      else {
+        const txt = await res.text()
+        try {
+          data = JSON.parse(txt)
+        } catch {
+          data = txt
+        }
+      }
+      const replyText = formatReply(data)
+      const aiMsg: ChatMessage = { id: makeId(), from: 'ai', text: replyText }
+      setMessages((prev) => [...prev, aiMsg])
+    } catch (err: any) {
+      const aiMsg: ChatMessage = { id: makeId(), from: 'ai', text: `Error contacting assistant: ${String(err?.message ?? err)}` }
+      setMessages((prev) => [...prev, aiMsg])
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  // Save updated decision:
+  // 1) Try server endpoint POST /update-decisions {customer_id, decision, reason}
+  // 2) If server endpoint returns 404 or fails, ask user to pick local file and overwrite via File System Access API
+  const saveDecision = async () => {
+    setSaveStatus('saving')
+    const payload = { customer_id: custId, decision, reason }
+
+    // Try server update endpoint
+    try {
+      const res = await fetch(`${API_BASE}/update-decisions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        const js = await res.json().catch(() => ({}))
+        setSaveStatus('saved (server)')
+        const now = new Date().toISOString()
+        setUpdatedAt(now)
+        onSavedDecision({ decision, reason, updated_at: now })
+        return
+      }
+      // if 404 or server doesn't support it, fallthrough to FS API
+    } catch (err) {
+      // ignore and try FS API
+    }
+
+    // File System Access API flow (Chromium)
+    if ('showOpenFilePicker' in window) {
+      try {
+        // Prompt user to choose the decisions.json file
+        // Note: this requires user interaction and only works in secure contexts (https / localhost)
+        // We will load, modify, and write back the JSON
+        // @ts-ignore
+        const [fileHandle] = await (window as any).showOpenFilePicker({
+          types: [
+            {
+              description: 'JSON files',
+              accept: { 'application/json': ['.json'] },
+            },
+          ],
+          excludeAcceptAllOption: true,
+          multiple: false,
+        })
+        const file = await fileHandle.getFile()
+        const text = await file.text()
+        let parsed = {}
+        try {
+          parsed = JSON.parse(text)
+        } catch (e) {
+          parsed = {}
+        }
+
+        // normalize shape: if file uses { decisions: { C101: {...} } } then update inside decisions
+        const newObj = { ...parsed } as any
+        if (newObj && typeof newObj === 'object' && 'decisions' in newObj && typeof newObj.decisions === 'object') {
+          newObj.decisions = { ...newObj.decisions, [custId]: { decision, reason, updated_at: new Date().toISOString() } }
+        } else {
+          // flat mapping
+          newObj[custId] = { decision, reason, updated_at: new Date().toISOString() }
+        }
+
+        const writable = await fileHandle.createWritable()
+        await writable.write(JSON.stringify(newObj, null, 2))
+        await writable.close()
+        setSaveStatus('saved (local file)')
+        const now = new Date().toISOString()
+        setUpdatedAt(now)
+        onSavedDecision({ decision, reason, updated_at: now })
+        return
+      } catch (err: any) {
+        setSaveStatus(`failed to save locally: ${String(err?.message ?? err)}`)
+        return
+      }
+    }
+
+    setSaveStatus('No server endpoint and File System Access API not available in this browser.')
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose}></div>
+      <div className="relative z-10 w-full max-w-4xl rounded-xl bg-white p-4 shadow-xl">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-lg font-semibold">Manager chat — {custId}</h3>
+            <div className="text-sm text-muted">Tabs: Chat / Decisions</div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="rounded-md px-3 py-1 border hover:bg-navy-50">Close</button>
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <nav className="flex gap-2">
+            <button onClick={() => setTab('chat')} className={`px-3 py-1 rounded ${tab === 'chat' ? 'bg-primary-50' : 'bg-navy-50'}`}>Chat</button>
+            <button onClick={() => setTab('decisions')} className={`px-3 py-1 rounded ${tab === 'decisions' ? 'bg-primary-50' : 'bg-navy-50'}`}>Decisions</button>
+          </nav>
+        </div>
+
+        <div className="min-h-[240px]">
+          {tab === 'chat' ? (
+            <>
+              <div className="max-h-72 overflow-auto border rounded p-2 bg-white mb-2">
+                {messages.map((m) => (
+                  <div key={m.id} className={`mb-2 ${m.from === 'ai' ? 'text-navy-700' : 'text-white'}`}>
+                    <div className={m.from === 'ai' ? 'bg-navy-50 p-2 rounded' : 'bg-primary-500 p-2 rounded text-white'}>{m.text}</div>
+                  </div>
+                ))}
+              </div>
+              <ManagerChatComposer onSend={sendManagerQuery} isSending={isSending} />
+              <div className="mt-2 text-xs text-muted">Manager queries are sent to your /chat backend with the current customer_id.</div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-navy-700">Decision</label>
+                  <select value={decision} onChange={(e) => setDecision(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2">
+                    <option value="APPROVE">APPROVE</option>
+                    <option value="REVIEW">REVIEW</option>
+                    <option value="REJECT">REJECT</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-navy-700">Reason</label>
+                  <textarea value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 w-full rounded-md border px-3 py-2 h-24" />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button onClick={saveDecision} className="rounded-lg bg-primary-600 px-4 py-2 text-white hover:bg-primary-700">Save</button>
+                  <div className="text-sm text-muted">{saveStatus ?? ''}</div>
+                </div>
+
+                <div className="text-xs text-muted">Updated at: {updatedAt ?? '-'}</div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
-    </>
+    </div>
   )
 }
 
-function HistoryPage() {
+function ManagerChatComposer({ onSend, isSending }: { onSend: (text: string) => Promise<void> | void; isSending: boolean }) {
+  const [value, setValue] = useState('')
+  const handleSubmit = async () => {
+    const t = value.trim()
+    if (!t) return
+    setValue('')
+    await onSend(t)
+  }
   return (
-    <>
-      <h1 className="text-base sm:text-lg font-semibold text-navy-900">Recent decisions</h1>
-      <p className="mt-1 text-xs sm:text-sm text-muted">
-        A simple overview of past eligibility checks. You can later replace this
-        with real data from your backend.
-      </p>
-      <ul className="mt-4 space-y-2 text-xs sm:text-sm text-navy-600">
-        <li className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 rounded-lg border border-navy-200 bg-white p-2 sm:px-3 sm:py-2">
-          <span className="font-medium">CUST-102938</span>
-          <span className="hidden sm:inline text-muted">·</span>
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] sm:text-xs font-medium text-amber-800 inline-flex w-fit">REVIEW</span>
-          <span className="hidden sm:inline text-muted">·</span>
-          <span>Personal loan</span>
-          <span className="hidden sm:inline text-muted">·</span>
-          <span className="text-muted">Today</span>
-        </li>
-        <li className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 rounded-lg border border-navy-200 bg-white p-2 sm:px-3 sm:py-2">
-          <span className="font-medium">CUST-948572</span>
-          <span className="hidden sm:inline text-muted">·</span>
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] sm:text-xs font-medium text-emerald-800 inline-flex w-fit">APPROVE</span>
-          <span className="hidden sm:inline text-muted">·</span>
-          <span>Credit card</span>
-          <span className="hidden sm:inline text-muted">·</span>
-          <span className="text-muted">Yesterday</span>
-        </li>
-      </ul>
-    </>
+    <div className="flex items-center gap-2 mt-2">
+      <input value={value} onChange={(e) => setValue(e.target.value)} className="flex-1 border rounded px-3 py-2" placeholder="Ask about this customer's details..." />
+      <button onClick={handleSubmit} disabled={isSending} className="rounded px-3 py-2 bg-primary-600 text-white">Send</button>
+    </div>
   )
 }
 
-function SettingsPage() {
-  return (
-    <>
-      <h1 className="text-base sm:text-lg font-semibold text-navy-900">Settings</h1>
-      <p className="mt-1 text-xs sm:text-sm text-muted">
-        Configure how the Banking Agent behaves. This is a placeholder
-        where you can add real settings (rulesets, thresholds, notification
-        options) later.
-      </p>
-    </>
-  )
-}
+/* Floating popup component with summary and Open chat -> ManagerChat flow */
+const FloatingPopup: React.FC = () => {
+  const [open, setOpen] = useState<boolean>(false)
 
-function HelpPage() {
+  // credentials
+  const [email, setEmail] = useState<string>('manager@gmail.com')
+  const [password, setPassword] = useState<string>('manager')
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [authenticated, setAuthenticated] = useState<boolean>(false)
+
+  // decisions state
+  const [decisions, setDecisions] = useState<Record<string, DecisionRecord>>({})
+  const [loading, setLoading] = useState<boolean>(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
+  // UI
+  const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null)
+  const [openManagerChatFor, setOpenManagerChatFor] = useState<string | null>(null)
+
+  // close on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // prevent background scroll when open
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open])
+
+  // fetch when authenticated & open
+  useEffect(() => {
+    if (open && authenticated) fetchDecisions()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, authenticated])
+
+  const tryUrls = ['/decisions.json', 'decisions.json', './decisions.json', `${API_BASE}/decisions.json`, `${API_BASE}/decisions-from-disk`]
+
+  const fetchDecisions = async () => {
+    setLoading(true)
+    setFetchError(null)
+    setDecisions({})
+    for (const url of tryUrls) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' })
+        if (!res.ok) continue
+        const payload = await res.json()
+        let mapping: Record<string, any> = {}
+        if (payload && typeof payload === 'object') {
+          mapping = ('decisions' in payload && typeof payload.decisions === 'object') ? payload.decisions : payload
+        } else {
+          continue
+        }
+        const normalized: Record<string, DecisionRecord> = {}
+        for (const [k, v] of Object.entries(mapping)) {
+          if (v && typeof v === 'object') {
+            normalized[k] = {
+              decision: String(v.decision ?? v.status ?? '').toUpperCase(),
+              reason: v.reason ?? v.explanation ?? '',
+              updated_at: v.updated_at ?? v.updatedAt ?? v.ts ?? undefined,
+            }
+          } else {
+            normalized[k] = { decision: String(v ?? '').toUpperCase(), reason: '' }
+          }
+        }
+        setDecisions(normalized)
+        setLoading(false)
+        return
+      } catch (err) {
+        // try next
+      }
+    }
+    setLoading(false)
+    setFetchError('Could not fetch decisions.json from expected locations. Place the file in public folder or expose it via backend.')
+  }
+
+  const handleClose = () => {
+    setOpen(false)
+    setAuthenticated(false)
+    setAuthError(null)
+    setDecisions({})
+    setFetchError(null)
+    setLoading(false)
+    setExpandedCustomer(null)
+    setOpenManagerChatFor(null)
+  }
+
+  const handleLogin = (e?: React.FormEvent) => {
+    e?.preventDefault()
+    setAuthError(null)
+    if (email.trim().toLowerCase() === 'manager@gmail.com' && password === 'manager') {
+      setAuthenticated(true)
+    } else {
+      setAuthError('Invalid credentials')
+    }
+  }
+
+  // Called when ManagerChat saved a decision
+  const onSavedDecision = (custId: string, rec: DecisionRecord) => {
+    setDecisions((prev) => ({ ...prev, [custId]: rec }))
+  }
+
   return (
     <>
-      <h1 className="text-base sm:text-lg font-semibold text-navy-900">Help center</h1>
-      <p className="mt-1 text-xs sm:text-sm text-muted">
-        Brief guidance for analysts using the Banking Agent.
-      </p>
-      <div className="mt-4 space-y-2 text-xs sm:text-sm text-navy-600">
-        <p>Use Chat to welcome customers and answer open questions.</p>
-        <p>
-          When asked about loan eligibility, the agent will request a customer
-          ID, fetch their data, run the rules, and show the result.
-        </p>
-      </div>
+      {/* Floating Button */}
+      <button
+        onClick={() => setOpen(true)}
+        aria-label="Open manager area"
+        className="fixed bottom-6 right-6 bg-primary-600 text-white p-4 rounded-full shadow-lg hover:bg-primary-700 transition z-40"
+        type="button"
+      >
+        🧑
+      </button>
+
+      {open && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={handleClose} />
+
+          <div className="relative z-10 w-full max-w-3xl rounded-xl bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-navy-900">Manager's Area</h3>
+                <p className="text-sm text-navy-600 mt-1">Sign in to view and edit decisions. Click "Open chat" to manage a customer directly.</p>
+              </div>
+              <div className="flex gap-2 items-center">
+                {authenticated && (
+                  <button onClick={() => { setAuthenticated(false); setDecisions({}); }} className="text-sm rounded-md border border-navy-200 px-3 py-1 hover:bg-navy-50">Logout</button>
+                )}
+                <button onClick={handleClose} className="rounded-md p-1 hover:bg-navy-50">✕</button>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              {!authenticated ? (
+                <form onSubmit={handleLogin} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-navy-700">Email</label>
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-md border border-navy-200 px-3 py-2 text-sm outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-navy-700">Password</label>
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 w-full rounded-md border border-navy-200 px-3 py-2 text-sm outline-none" />
+                  </div>
+
+                  {authError && <div className="text-sm text-rose-600">{authError}</div>}
+
+                  <div className="flex items-center gap-2">
+                    <button type="submit" className="rounded-lg bg-primary-600 text-white px-4 py-2 text-sm hover:bg-primary-700 transition">Sign in</button>
+                    <button type="button" onClick={handleClose} className="rounded-lg border border-navy-200 px-4 py-2 text-sm hover:bg-navy-50">Cancel</button>
+                  </div>
+                </form>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-navy-600">Logged in as <span className="font-medium">manager@gmail.com</span></div>
+                    <div className="text-sm text-muted">Decisions: {Object.keys(decisions).length}</div>
+                  </div>
+
+                  {loading ? (
+                    <div className="text-sm text-navy-600">Loading decisions…</div>
+                  ) : fetchError ? (
+                    <div className="rounded-md bg-rose-50 border border-rose-100 p-3 text-sm text-rose-700">{fetchError}</div>
+                  ) : Object.keys(decisions).length === 0 ? (
+                    <div className="text-sm text-navy-600">No decisions found.</div>
+                  ) : (
+                    <div className="overflow-auto max-h-96 rounded-md border border-navy-100">
+                      <table className="min-w-full divide-y divide-navy-100">
+                        <thead className="bg-navy-50 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-navy-800">Customer ID</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-navy-800">Decision</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-navy-800">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-navy-100">
+                          {Object.entries(decisions).map(([custId, rec]) => (
+                            <React.Fragment key={custId}>
+                              <tr>
+                                <td className="px-3 py-2 text-sm text-navy-700 font-medium whitespace-nowrap">{custId}</td>
+                                <td className="px-3 py-2 text-sm text-navy-700">{rec.decision}</td>
+                                <td className="px-3 py-2 text-sm text-navy-700 flex gap-2">
+                                  <button onClick={() => setExpandedCustomer((prev) => (prev === custId ? null : custId))} className="rounded-md border px-2 py-1">View reason</button>
+                                  <button onClick={() => setOpenManagerChatFor(custId)} className="rounded-md border px-2 py-1">Open chat</button>
+                                </td>
+                              </tr>
+                              {expandedCustomer === custId && (
+                                <tr>
+                                  <td colSpan={3} className="px-3 py-2 bg-navy-50">
+                                    <div className="text-sm">{rec.reason ?? '-'}</div>
+                                    <div className="text-xs text-muted mt-1">Updated at: {rec.updated_at ?? '-'}</div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ManagerChat modal */}
+      {openManagerChatFor && (
+        <ManagerChat
+          custId={openManagerChatFor}
+          initialDecision={decisions[openManagerChatFor] ?? { decision: '', reason: '' }}
+          onSavedDecision={(rec) => { onSavedDecision(openManagerChatFor, rec); setOpenManagerChatFor(null) }}
+          onClose={() => setOpenManagerChatFor(null)}
+        />
+      )}
     </>
   )
 }

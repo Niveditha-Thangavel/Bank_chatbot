@@ -1,0 +1,212 @@
+{
+  "current": [
+    {
+      "role": "user",
+      "text": "hiii"
+    },
+    {
+      "role": "assistant",
+      "text": "I am unable to answer this question. I will get back to you soon. Thank you."
+    },
+    {
+      "role": "user",
+      "text": "hi"
+    },
+    {
+      "role": "assistant",
+      "text": "I am unable to answer this question. I will get back to you soon. Thank you."
+    },
+    {
+      "role": "user",
+      "text": "hi"
+    },
+    {
+      "role": "assistant",
+      "text": "I am unable to answer this question. I will get back to you soon. Thank you."
+    },
+    {
+      "role": "user",
+      "text": "hellooo"
+    },
+    {
+      "role": "assistant",
+      "text": "I am unable to answer this question. I will get back to you soon. Thank you."
+    },
+    {
+      "role": "user",
+      "text": "how are you"
+    },
+    {
+      "role": "assistant",
+      "text": "I am unable to answer this question. I will get back to you soon. Thank you."
+    },
+    {
+      "role": "user",
+      "text": "Show credit and loan details for customer C102"
+    },
+    {
+      "role": "assistant",
+      "text": "For customer C102, here are the credit and loan details:\n\nCredit Cards:\nCard Number: 4222222222222222\nCredit Limit: 40000\nCurrent Balance: 30000\n\nBilling Cycles:\nCycle 1 (October 1, 2025 - October 31, 2025):\nAmount Due: 15000\nAmount Paid: 12000\nPayment Date: November 5, 2025\n\nCycle 2 (November 1, 2025 - November 30, 2025):\nAmount Due: 20000\nAmount Paid: 15000\nPayment Date: December 3, 2025\n\nLoans:\nLoan ID: L102\nLoan Type: Car\nPrincipal Amount: 200000\nOutstanding Amount: 180000\nMonthly Due: 15000\nLast Payment Date: November 20, 2025\n\nLoan ID: L103\nLoan Type: Personal\nPrincipal Amount: 10000\nOutstanding Amount: 6000\nMonthly Due: 1000\nLast Payment Date: November 10, 2025"
+    },
+    {
+      "role": "user",
+      "text": "Show credit and loan details for customer C102"
+    },
+    {
+      "role": "assistant",
+      "text": "For customer C102, here are the credit and loan details:\n\nCredit Cards:\nCard Number: 4222222222222222\nCredit Limit: 40000\nCurrent Balance: 30000\n\nBilling Cycles:\nCycle 1 (October 1, 2025 - October 31, 2025):\nAmount Due: 15000\nAmount Paid: 12000\nPayment Date: November 5, 2025\n\nCycle 2 (November 1, 2025 - November 30, 2025):\nAmount Due: 20000\nAmount Paid: 15000\nPayment Date: December 3, 2025\n\nLoans:\nLoan ID: L102\nLoan Type: Car\nPrincipal Amount: 200000\nOutstanding Amount: 180000\nMonthly Due: 15000\nLast Payment Date: November 20, 2025\n\nLoan ID: L103\nLoan Type: Personal\nPrincipal Amount: 10000\nOutstanding Amount: 6000\nMonthly Due: 1000\nLast Payment Date: November 10, 2025"
+    },
+    {
+      "role": "user",
+      "text": "hi"
+    },
+    {
+      "role": "user",
+      "text": "why this decision\nCustomer ID: C102"
+    },
+    {
+      "role": "user",
+      "text": "why this decision\nCustomer ID: C102"
+    },
+    {
+      "role": "user",
+      "text": "why this decision\nCustomer ID: C102"
+    },
+    {
+      "role": "assistant",
+      "text": "I am unable to answer this question. I will get back to you soon. Thank you."
+    }
+  ],
+  "history": [
+    [
+      {
+        "role": "user",
+        "text": "hi"
+      },
+      {
+        "role": "user",
+        "text": "hi"
+      },
+      {
+        "role": "assistant",
+        "text": "Hi there! How can I help you today?"
+      },
+      {
+        "role": "user",
+        "text": "my name is Niveditha"
+      },
+      {
+        "role": "assistant",
+        "text": "Hi Niveditha! It's nice to meet you. How can I help you today? Do you have a question or a task for me?"
+      },
+      {
+        "role": "user",
+        "text": "what's my name"
+      },
+      {
+        "role": "assistant",
+        "text": "Your name is Niveditha."
+      },
+      {
+        "role": "user",
+        "text": "my customer id is C102 can you check my loan eligibility"
+      },
+      {
+        "role": "assistant",
+        "text": "{\"decision\": \"REVIEW\", \"reason\": \"Customer needs to be reviewed due to account being less than 6 months old, credit utilization exceeding 70%, and having more than 1 active loan.\"}"
+      },
+      {
+        "role": "user",
+        "text": "can you show the credit and loan details of mine"
+      },
+      {
+        "role": "assistant",
+        "text": "Here are your credit and loan details:\n\n**Bank Statement Summary (for November 2025):**\n*   **Credits:**\n    *   Salary: 28000\n    *   Project Bonus: 10000\n*   **Debits:**\n    *   Grocery: 1500\n    *   Coffee: 200\n    *   Transport: 500\n    *   Electronics: 1000\n    *   Shopping: 2500\n    *   Dining: 300\n\n**Credit Profile:**\n*   **Account Creation Date:** 2025-07-01\n*   **Credit Cards:**\n    *   **Card Number:** 4222222222222222\n        *   **Credit Limit:** 40000\n        *   **Current Balance:** 30000\n        *   **Billing Cycles:**\n            *   **Cycle 1 (Oct 2025):** Amount Due: 15000, Amount Paid: 12000, Payment Date: 2025-11-05\n            *   **Cycle 2 (Nov 2025):** Amount Due: 20000, Amount Paid: 15000, Payment Date: 2025-12-03\n*   **Loans:**\n    *   **Loan ID:** L102\n        *   **Loan Type:** Car\n        *   **Principal Amount:** 200000\n        *   **Outstanding Amount:** 180000\n        *   **Monthly Due:** 15000\n        *   **Last Payment Date:** 2025-11-20\n    *   **Loan ID:** L103\n        *   **Loan Type:** Personal\n        *   **Principal Amount:** 10000\n        *   **Outstanding Amount:** 6000\n        *   **Monthly Due:** 1000\n        *   **Last Payment Date:** 2025-11-10"
+      },
+      {
+        "role": "user",
+        "text": "why this decision is taken?"
+      },
+      {
+        "role": "assistant",
+        "text": "The decision to review your loan eligibility was taken because of the following reasons, based on your credit and loan details:\n\n1.  **Account Age:** Your account was created on 2025-07-01. As of November 2025, your account is less than 6 months old. The eligibility rules require an account to be 6 months or older.\n2.  **Credit Utilization:** Your current credit card balance is 30000 against a credit limit of 40000, which means your credit utilization is 75%. The eligibility rules require credit utilization to be less than 70%.\n3.  **Number of Active Loans:** You currently have two active loans (Car Loan L102 and Personal Loan L103). The eligibility rules state that a customer should have no more than 1 active loan."
+      },
+      {
+        "role": "user",
+        "text": "check for my friends customer id C106"
+      },
+      {
+        "role": "assistant",
+        "text": "I apologize, but I couldn't find any information for customer ID C106. The customer was not found in our data sources. I will get back to you soon if I can find more information. Thank you."
+      },
+      {
+        "role": "user",
+        "text": "why?"
+      },
+      {
+        "role": "user",
+        "text": "why?"
+      },
+      {
+        "role": "assistant",
+        "text": "I apologize, but I don't have further information to explain why customer ID C106 was not found in our data sources. My tools only indicate whether a customer exists or not, and do not provide details about the underlying reasons for a customer's absence from the system. I will get back to you soon if I can find more information. Thank you."
+      },
+      {
+        "role": "user",
+        "text": "hi"
+      },
+      {
+        "role": "assistant",
+        "text": "Hi there! How can I help you today?"
+      },
+      {
+        "role": "user",
+        "text": "whats my name?"
+      },
+      {
+        "role": "assistant",
+        "text": "Your name is Niveditha."
+      },
+      {
+        "role": "user",
+        "text": "give my loan eligibility"
+      },
+      {
+        "role": "assistant",
+        "text": "```json\n{\"decision\": \"REJECT\", \"reason\": \"Account is less than 6 months old, credit utilization is 75% which exceeds the 70% limit, customer has 2 active loans, and credit history strength is insufficient.\"}\n```"
+      },
+      {
+        "role": "user",
+        "text": "hi"
+      },
+      {
+        "role": "assistant",
+        "text": "Hi there! How can I help you today?"
+      },
+      {
+        "role": "user",
+        "text": "what's my loan eligibility"
+      },
+      {
+        "role": "assistant",
+        "text": "Your loan eligibility has been assessed. Unfortunately, your loan application is currently **rejected**. This decision was made for the following reasons:\n\n*   **Account Age:** Your account is less than 6 months old, which does not meet our minimum requirement.\n*   **Credit Utilization:** Your current credit card utilization is 75%, which is above the acceptable limit of 70%.\n*   **Active Loans:** You currently have two active loans, exceeding our limit of one active loan.\n*   **Credit History Strength:** Your credit history shows an underpayment in a recent billing cycle, indicating insufficient credit history strength."
+      },
+      {
+        "role": "user",
+        "text": "hi"
+      },
+      {
+        "role": "assistant",
+        "text": "Hi there! How can I help you today?"
+      },
+      {
+        "role": "user",
+        "text": "bye"
+      },
+      {
+        "role": "assistant",
+        "text": "Bye Niveditha! Have a great day!"
+      }
+    ]
+  ]
+}

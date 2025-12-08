@@ -118,6 +118,43 @@
           "last_payment_date": "2025-11-15"
         }
       ]
+    },
+    {
+      "customer_id": "C104",
+      "account_creation_date": "2024-01-15",
+      "credit_cards": [
+        {
+          "card_number": "4333333333333333",
+          "credit_limit": 50000.0,
+          "current_balance": 12000.0,
+          "billing_cycles": [
+            {
+              "cycle_start": "2025-10-01",
+              "cycle_end": "2025-10-31",
+              "amount_due": 8000.0,
+              "amount_paid": 8000.0,
+              "payment_date": "2025-11-03"
+            },
+            {
+              "cycle_start": "2025-11-01",
+              "cycle_end": "2025-11-30",
+              "amount_due": 9000.0,
+              "amount_paid": 9000.0,
+              "payment_date": "2025-12-02"
+            }
+          ]
+        }
+      ],
+      "loans": [
+        {
+          "loan_id": "L104",
+          "loan_type": "personal",
+          "principal_amount": 10000.0,
+          "outstanding_amount": 2000.0,
+          "monthly_due": 500.0,
+          "last_payment_date": "2025-11-15"
+        }
+      ]
     }
   ]
 }

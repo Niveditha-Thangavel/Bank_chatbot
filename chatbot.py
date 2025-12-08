@@ -57,8 +57,8 @@ class rules_tool(BaseTool):
 
 
 llm = LLM(
-    model="ollama/phi3",
-    base_url="http://localhost:11434"
+    model="gemini/gemini-2.5-flash",
+    api_key = "AIzaSyBIZQAZXMWti287_4AiFy07XA0YzgPFKL0"
 )
 
 
