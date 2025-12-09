@@ -1,4 +1,4 @@
-// App.tsx (complete)
+// App.tsx (complete) — UPDATED for per-session support
 import './index.css'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -6,13 +6,13 @@ type View = 'chat' | 'rules' | 'history' | 'settings' | 'help'
 type ChatMessage = { id: string; from: 'user' | 'ai'; text: string }
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const SESSION_STORAGE_KEY = 'bank_session_id'
 
 /**
- * NOTE about saving:
- * - Browsers cannot write to arbitrary disk paths directly.
- * - This code tries to POST changed decisions to `${API_BASE}/update-decisions` if available.
- * - If that endpoint is not present, it falls back to asking the manager to pick the local
- *   decisions.json file using the File System Access API and writes the file (Chromium only).
+ * NOTE about sessions:
+ * - The backend returns `session_id` in the response when a new session is created.
+ * - We persist that id in localStorage and include it in subsequent /chat calls so they
+ *   all belong to the same server-side session.
  */
 
 function App() {
@@ -27,6 +27,25 @@ function App() {
   ])
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // session id (persisted to localStorage)
+  const [sessionId, setSessionId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(SESSION_STORAGE_KEY)
+    } catch {
+      return null
+    }
+  })
+
+  const saveSessionId = (id: string | null) => {
+    try {
+      if (id) localStorage.setItem(SESSION_STORAGE_KEY, id)
+      else localStorage.removeItem(SESSION_STORAGE_KEY)
+    } catch {
+      // ignore storage errors
+    }
+    setSessionId(id)
+  }
 
   const makeId = useMemo(
     () => () =>
@@ -44,33 +63,40 @@ function App() {
     el.scrollTop = el.scrollHeight
   }, [messages, isSending])
 
-  const handleSend = async (text: string) => {
+  // helper to add a message locally
+  const pushMessage = (m: ChatMessage) => setMessages((prev) => [...prev, m])
+
+  // handle sending messages, now sends session_id and stores returned session_id
+  const handleSend = async (text: string, opts?: { endSession?: boolean }) => {
     const trimmed = text.trim()
     if (!trimmed || isSending) return
 
     setError(null)
     const userMessage: ChatMessage = { id: makeId(), from: 'user', text: trimmed }
-    setMessages((prev) => [...prev, userMessage])
+    pushMessage(userMessage)
     setIsSending(true)
 
     try {
+      const payload: any = { message: trimmed }
+      if (sessionId) payload.session_id = sessionId
+      if (opts?.endSession) payload.end_session = true
+
       const response = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: trimmed }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
         throw new Error(`Backend responded with status ${response.status}`)
       }
 
-      // try to parse JSON first; backend may return either JSON or raw string
+      // parse response that may be JSON or text
       let data: unknown
       const contentType = response.headers.get('content-type') || ''
       if (contentType.includes('application/json')) {
         data = await response.json()
       } else {
-        // if it's plain text that is JSON-like, attempt to parse; otherwise keep raw text
         const textData = await response.text()
         try {
           data = JSON.parse(textData)
@@ -79,10 +105,18 @@ function App() {
         }
       }
 
-      const replyText: string = formatReply(data)
+      // If server returned a session_id, persist it (server-created or continued)
+      if (data && typeof data === 'object' && 'session_id' in (data as any)) {
+        const sid = String((data as any).session_id)
+        saveSessionId(sid)
+      }
+
+      // The server might return { reply: "...", session_id: "..." } or raw reply
+      const replyPayload = (data && typeof data === 'object' && 'reply' in (data as any)) ? (data as any).reply : data
+      const replyText: string = formatReply(replyPayload)
 
       const aiMessage: ChatMessage = { id: makeId(), from: 'ai', text: replyText }
-      setMessages((prev) => [...prev, aiMessage])
+      pushMessage(aiMessage)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unexpected error'
       setError(message)
@@ -91,7 +125,7 @@ function App() {
         from: 'ai',
         text: 'Sorry, something went wrong while contacting the assistant.',
       }
-      setMessages((prev) => [...prev, aiMessage])
+      pushMessage(aiMessage)
     } finally {
       setIsSending(false)
     }
@@ -103,10 +137,41 @@ function App() {
     'Explain how the decision was made for C104',
   ]
 
+  // Reset to a new fresh session and reset messages
+  const newSession = () => {
+    saveSessionId(null)
+    setMessages([
+      {
+        id: 'welcome',
+        from: 'ai',
+        text:
+          "👋 Hi, I'm your Banking Agent.\n\nAsk about a loan and I'll confirm the customer ID, fetch bank statements, credit cards, and loans, run the rules, and share a clear decision with reasons.",
+      },
+    ])
+    setError(null)
+  }
+
+  // Archive / end current session on server (if any)
+  const endAndArchiveSession = async () => {
+    if (!sessionId) {
+      // nothing to archive
+      newSession()
+      return
+    }
+    // send a dummy message with end_session flag so server archives after reply
+    await handleSend('End session', { endSession: true })
+    // clear local session id — server has archived it
+    saveSessionId(null)
+  }
+
   return (
     <div className="min-h-screen bg-background text-navy-900">
       <div className="flex h-screen max-h-screen flex-col overflow-hidden">
-        <TopBar />
+        <TopBar
+          sessionId={sessionId}
+          onNewSession={newSession}
+          onEndSession={endAndArchiveSession}
+        />
         <div className="flex flex-1 overflow-hidden relative">
           {/* Desktop Sidebar Menu */}
           <MenuBar currentView={view} onNavigate={setView} />
@@ -146,7 +211,15 @@ function App() {
 
 /* ------------------ small UI components (no change from previous) ------------------ */
 
-function TopBar() {
+function TopBar({
+  sessionId,
+  onNewSession,
+  onEndSession,
+}: {
+  sessionId: string | null
+  onNewSession: () => void
+  onEndSession: () => void
+}) {
   return (
     <header className="flex items-center justify-between border-b border-navy-200 bg-white px-3 py-2 sm:px-4 sm:py-3 md:px-6 shadow-sm flex-shrink-0">
       <div className="flex items-center gap-2 sm:gap-3">
@@ -160,6 +233,15 @@ function TopBar() {
           <span className="hidden sm:block text-xs text-muted">
             Welcome customers, check eligibility, and answer questions
           </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <div className="text-xs text-muted hidden sm:block">Session: <span className="font-mono text-[11px] text-navy-700">{sessionId ?? '—'}</span></div>
+
+        <div className="flex gap-2">
+          <button onClick={onNewSession} className="rounded-md px-3 py-1 border hover:bg-navy-50 text-sm">New Session</button>
+          <button onClick={onEndSession} className="rounded-md px-3 py-1 border hover:bg-navy-50 text-sm">End & Archive Session</button>
         </div>
       </div>
     </header>
@@ -251,11 +333,11 @@ function ChatWindow({
   scrollRef,
 }: {
   messages: ChatMessage[]
-  onSend: (text: string) => Promise<void> | void
+  onSend: (text: string, opts?: { endSession?: boolean }) => Promise<void> | void
   isSending: boolean
   error: string | null
   quickPrompts: string[]
-  scrollRef: React.RefObject<HTMLDivElement>
+  scrollRef: React.RefObject<HTMLDivElement | null>
 }) {
   return (
     <section className="flex min-w-0 flex-1 flex-col w-full">
@@ -283,7 +365,7 @@ function ChatWindow({
         </div>
       </div>
 
-      <ChatComposer onSend={onSend} isSending={isSending} quickPrompts={quickPrompts} />
+      <ChatComposer onSend={(t) => onSend(t)} isSending={isSending} quickPrompts={quickPrompts} />
     </section>
   )
 }
@@ -315,7 +397,7 @@ function ChatComposer({
   isSending,
   quickPrompts,
 }: {
-  onSend: (text: string) => Promise<void> | void
+  onSend: (text: string, opts?: { endSession?: boolean }) => Promise<void> | void
   isSending: boolean
   quickPrompts: string[]
 }) {
@@ -447,15 +529,13 @@ function SettingsPage() { return (<><h1 className="text-base sm:text-lg font-sem
 function HelpPage() { return (<><h1 className="text-base sm:text-lg font-semibold text-navy-900">Help center</h1></>) }
 
 /* ---------------- FloatingPopup + Manager Chat ----------------
-   - sign-in -> show summary (customer id + decision) with View reason
-   - Open Chat button opens ManagerChat panel with two tabs: Chat and Decisions
-   - ManagerChat: loads customer details by calling /chat with message "Load customer CUSTOMER_ID" and customer_id
-   - Manager can change decision in Decisions tab; Save will try server write, else use File System Access API.
+   - ManagerChat: loads customer details by calling /chat with message and customer_id.
+   - ManagerChat will include the current session_id (if present) automatically via localStorage.
 */
 
 type DecisionRecord = { decision: string; reason?: string; updated_at?: string }
 
-/* ManagerChat component (inline) */
+/* ManagerChat — replaced to auto-load customer info on open + manager action buttons */
 function ManagerChat({
   custId,
   initialDecision,
@@ -485,18 +565,34 @@ function ManagerChat({
     [],
   )
 
+  const pushMessage = (m: ChatMessage) => setMessages((prev) => [...prev, m])
+
+  // read stored session id so manager chat attaches to same session if present
+  const getStoredSessionId = (): string | null => {
+    try {
+      return localStorage.getItem(SESSION_STORAGE_KEY)
+    } catch {
+      return null
+    }
+  }
+
+  // Core function that sends queries to backend /chat (includes session and customer_id)
   const sendManagerQuery = async (text: string) => {
     if (!text.trim()) return
     const userMsg: ChatMessage = { id: makeId(), from: 'user', text }
-    setMessages((prev) => [...prev, userMsg])
+    pushMessage(userMsg)
     setIsSending(true)
     try {
-      // send to the same /chat endpoint but include customer_id in payload
+      const payload: any = { message: text, customer_id: custId }
+      const sid = getStoredSessionId()
+      if (sid) payload.session_id = sid
+
       const res = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, customer_id: custId }),
+        body: JSON.stringify(payload),
       })
+
       const contentType = res.headers.get('content-type') || ''
       let data: unknown
       if (contentType.includes('application/json')) data = await res.json()
@@ -508,20 +604,122 @@ function ManagerChat({
           data = txt
         }
       }
-      const replyText = formatReply(data)
+
+      // persist any returned session id
+      if (data && typeof data === 'object' && 'session_id' in (data as any)) {
+        const newSid = String((data as any).session_id)
+        try {
+          localStorage.setItem(SESSION_STORAGE_KEY, newSid)
+        } catch {
+          // ignore storage errors
+        }
+      }
+
+      // Extract reply (server may return { reply: "...", session_id: "..." } or raw text)
+      const replyPayload = (data && typeof data === 'object' && 'reply' in (data as any)) ? (data as any).reply : data
+      const replyText = formatReply(replyPayload)
       const aiMsg: ChatMessage = { id: makeId(), from: 'ai', text: replyText }
-      setMessages((prev) => [...prev, aiMsg])
+      pushMessage(aiMsg)
     } catch (err: any) {
       const aiMsg: ChatMessage = { id: makeId(), from: 'ai', text: `Error contacting assistant: ${String(err?.message ?? err)}` }
-      setMessages((prev) => [...prev, aiMsg])
+      pushMessage(aiMsg)
     } finally {
       setIsSending(false)
     }
   }
 
-  // Save updated decision:
-  // 1) Try server endpoint POST /update-decisions {customer_id, decision, reason}
-  // 2) If server endpoint returns 404 or fails, ask user to pick local file and overwrite via File System Access API
+  // --- NEW: automatically load customer data when ManagerChat opens ---
+  useEffect(() => {
+    const initialLoad = async () => {
+      const alreadyLoaded = messages.some((m) =>
+        typeof m.text === 'string' && (m.text.includes('Bank statement:') || m.text.includes('Customer:'))
+      )
+      if (alreadyLoaded) return
+
+      const loadPrompt =
+        `Load full customer profile for ${custId}. ` +
+        `Please fetch bank_statement and credit_profile using the tool and return a concise JSON object containing at least: customer_id, bank_statement, credit_profile.`
+
+      await sendManagerQuery(loadPrompt)
+    }
+
+    initialLoad()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [custId])
+
+  // ----- NEW: send manager action (Approve / Reject) as JSON to backend -----
+  // Sends JSON { action: "Approve" | "Reject", customer_id: "<custId>", reason: "<reason>" } to /manager-action
+  const sendManagerAction = async (action: 'Approve' | 'Reject') => {
+    setSaveStatus('sending action...')
+    try {
+      // include reason when sending action
+      const body = { action, customer_id: custId, reason }
+      const res = await fetch(`${API_BASE}/manager-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+
+      if (!res.ok) {
+        // try fallback to update-decisions (keeps compatibility)
+        setSaveStatus(`server returned ${res.status}, attempting fallback...`)
+        const fallback = await fetch(`${API_BASE}/update-decisions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customer_id: custId, decision: action.toUpperCase(), reason }),
+        }).catch(() => null)
+
+        if (fallback && (fallback as Response).ok) {
+          const now = new Date().toISOString()
+          setSaveStatus('saved (fallback)')
+          setUpdatedAt(now)
+          setDecision(action.toUpperCase())
+          onSavedDecision({ decision: action.toUpperCase(), reason, updated_at: now })
+          pushMessage({ id: makeId(), from: 'ai', text: `${action}: ${custId} — saved via fallback` })
+          // refresh list from disk if parent exposed fetchDecisions via closure
+          return
+        }
+        throw new Error(`manager-action failed and fallback failed (status ${res.status})`)
+      }
+
+      // parse returned JSON — backend returns the record { decision, reason, updated_at }
+      const data = await res.json().catch(() => null)
+      const rec = data && data.decision ? data.decision : null
+
+      // success — update local UI and notify
+      const now = new Date().toISOString()
+      setUpdatedAt(now)
+      setDecision(action.toUpperCase())
+      setSaveStatus(`saved (${action})`)
+
+      // prefer backend-provided record if returned
+      const recordToUse = rec ?? { decision: action.toUpperCase(), reason, updated_at: now }
+      onSavedDecision(recordToUse)
+
+      // Append a confirmation to manager chat
+      pushMessage({ id: makeId(), from: 'ai', text: `${action}: ${custId}` })
+
+      // attempt to fetch the updated decisions.json so FloatingPopup shows authoritative file contents
+      // (FloatingPopup provides fetchDecisions in its scope; if it's not accessible, parent will update via onSavedDecision wrapper)
+      try {
+        // optional: try to refresh the parent's decisions.json by asking the parent to fetch
+        // If parent exposes a function or wrapper it will do it; else this will be a best-effort noop.
+        // We attempt a direct fetch and ignore failure.
+        const decRes = await fetch(`${API_BASE}/decisions.json`, { cache: 'no-store' })
+        if (decRes.ok) {
+          // parent FloatingPopup will be updated via its own fetchDecisions or via onSavedDecision above
+        }
+      } catch {
+        // ignore minor refresh failures
+      }
+    } catch (err: any) {
+      setSaveStatus(String(err?.message ?? err))
+      pushMessage({ id: makeId(), from: 'ai', text: `Failed to send action: ${String(err?.message ?? err)}` })
+    }
+  }
+
+
+  // Save updated decision (existing flow kept as alternative)
   const saveDecision = async () => {
     setSaveStatus('saving')
     const payload = { customer_id: custId, decision, reason }
@@ -534,24 +732,19 @@ function ManagerChat({
         body: JSON.stringify(payload),
       })
       if (res.ok) {
-        const js = await res.json().catch(() => ({}))
-        setSaveStatus('saved (server)')
         const now = new Date().toISOString()
+        setSaveStatus('saved (server)')
         setUpdatedAt(now)
         onSavedDecision({ decision, reason, updated_at: now })
         return
       }
-      // if 404 or server doesn't support it, fallthrough to FS API
-    } catch (err) {
-      // ignore and try FS API
+    } catch {
+      // ignore and fallthrough to FS API
     }
 
-    // File System Access API flow (Chromium)
+    // File System Access API fallback (same as before)
     if ('showOpenFilePicker' in window) {
       try {
-        // Prompt user to choose the decisions.json file
-        // Note: this requires user interaction and only works in secure contexts (https / localhost)
-        // We will load, modify, and write back the JSON
         // @ts-ignore
         const [fileHandle] = await (window as any).showOpenFilePicker({
           types: [
@@ -565,19 +758,17 @@ function ManagerChat({
         })
         const file = await fileHandle.getFile()
         const text = await file.text()
-        let parsed = {}
+        let parsed: any = {}
         try {
           parsed = JSON.parse(text)
-        } catch (e) {
+        } catch {
           parsed = {}
         }
 
-        // normalize shape: if file uses { decisions: { C101: {...} } } then update inside decisions
         const newObj = { ...parsed } as any
         if (newObj && typeof newObj === 'object' && 'decisions' in newObj && typeof newObj.decisions === 'object') {
           newObj.decisions = { ...newObj.decisions, [custId]: { decision, reason, updated_at: new Date().toISOString() } }
         } else {
-          // flat mapping
           newObj[custId] = { decision, reason, updated_at: new Date().toISOString() }
         }
 
@@ -598,6 +789,7 @@ function ManagerChat({
     setSaveStatus('No server endpoint and File System Access API not available in this browser.')
   }
 
+  /* ---------- UI (updated to include Approve/Reject buttons) ---------- */
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose}></div>
@@ -630,7 +822,7 @@ function ManagerChat({
                 ))}
               </div>
               <ManagerChatComposer onSend={sendManagerQuery} isSending={isSending} />
-              <div className="mt-2 text-xs text-muted">Manager queries are sent to your /chat backend with the current customer_id.</div>
+              <div className="mt-2 text-xs text-muted">Manager queries are sent to your /chat backend with the current customer_id and current session (if one exists).</div>
             </>
           ) : (
             <>
@@ -650,7 +842,12 @@ function ManagerChat({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button onClick={() => sendManagerAction('Approve')} className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700">Approve</button>
+                  <button onClick={() => sendManagerAction('Reject')} className="rounded-lg bg-rose-600 px-4 py-2 text-white hover:bg-rose-700">Reject</button>
+
+                  {/* keep original Save as alternative */}
                   <button onClick={saveDecision} className="rounded-lg bg-primary-600 px-4 py-2 text-white hover:bg-primary-700">Save</button>
+
                   <div className="text-sm text-muted">{saveStatus ?? ''}</div>
                 </div>
 
@@ -663,6 +860,8 @@ function ManagerChat({
     </div>
   )
 }
+
+
 
 function ManagerChatComposer({ onSend, isSending }: { onSend: (text: string) => Promise<void> | void; isSending: boolean }) {
   const [value, setValue] = useState('')
@@ -896,13 +1095,26 @@ const FloatingPopup: React.FC = () => {
 
       {/* ManagerChat modal */}
       {openManagerChatFor && (
-        <ManagerChat
-          custId={openManagerChatFor}
-          initialDecision={decisions[openManagerChatFor] ?? { decision: '', reason: '' }}
-          onSavedDecision={(rec) => { onSavedDecision(openManagerChatFor, rec); setOpenManagerChatFor(null) }}
-          onClose={() => setOpenManagerChatFor(null)}
-        />
-      )}
+      <ManagerChat
+        custId={openManagerChatFor}
+        initialDecision={decisions[openManagerChatFor] ?? { decision: '', reason: '' }}
+        onSavedDecision={(rec) => {
+          // update parent decisions state (wrapper defined above)
+          onSavedDecision(openManagerChatFor, rec);
+          // close manager chat
+          setOpenManagerChatFor(null);
+          // re-fetch decisions.json from backend to reflect persisted file content
+          // best-effort call; fetchDecisions is in FloatingPopup scope
+          fetchDecisions().catch(() => {});
+        }}
+        onClose={() => {
+          setOpenManagerChatFor(null);
+          // also refresh list when closing (ensure latest file state)
+          fetchDecisions().catch(() => {});
+        }}
+      />
+    )}
+
     </>
   )
 }
