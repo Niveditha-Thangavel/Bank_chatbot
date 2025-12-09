@@ -3,5 +3,10 @@
     "decision": "APPROVE",
     "reason": "",
     "updated_at": "2025-12-09T06:03:44.424372Z"
+  },
+  "C101": {
+    "decision": "REVIEW",
+    "reason": "no income",
+    "updated_at": "2025-12-09T08:46:56.204108Z"
   }
 }

@@ -1,4 +1,4 @@
-// App.tsx (complete) — UPDATED for per-session support
+// App.tsx — Complete, self-contained. Replaces previous App.tsx.
 import './index.css'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
@@ -7,13 +7,6 @@ type ChatMessage = { id: string; from: 'user' | 'ai'; text: string }
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 const SESSION_STORAGE_KEY = 'bank_session_id'
-
-/**
- * NOTE about sessions:
- * - The backend returns `session_id` in the response when a new session is created.
- * - We persist that id in localStorage and include it in subsequent /chat calls so they
- *   all belong to the same server-side session.
- */
 
 function App() {
   const [view, setView] = useState<View>('chat')
@@ -209,7 +202,7 @@ function App() {
   )
 }
 
-/* ------------------ small UI components (no change from previous) ------------------ */
+/* ------------------ small UI components ------------------ */
 
 function TopBar({
   sessionId,
@@ -323,7 +316,7 @@ function MobileMenuBar({
   )
 }
 
-/* Chat window and composer left the same as earlier (user-facing) */
+/* Chat window and composer */
 function ChatWindow({
   messages,
   onSend,
@@ -522,20 +515,25 @@ function formatReply(raw: unknown): string {
   return 'No reply returned from the assistant. Please try again.'
 }
 
-/* --- static pages --- (unchanged) */
-function RulesPage() { /* ... same as earlier ... */ return (<><h1 className="text-base sm:text-lg font-semibold text-navy-900">Eligibility rules</h1><p className="mt-1 text-xs sm:text-sm text-muted">These are the core checks used by the Banking Agent when running an eligibility decision.</p></>) }
+/* --- static pages --- */
+function RulesPage() {
+  return (
+    <>
+      <h1 className="text-base sm:text-lg font-semibold text-navy-900">Eligibility rules</h1>
+      <p className="mt-1 text-xs sm:text-sm text-muted">These are the core checks used by the Banking Agent when running an eligibility decision.</p>
+    </>
+  )
+}
 function HistoryPage() { return (<><h1 className="text-base sm:text-lg font-semibold text-navy-900">Recent decisions</h1></>) }
 function SettingsPage() { return (<><h1 className="text-base sm:text-lg font-semibold text-navy-900">Settings</h1></>) }
 function HelpPage() { return (<><h1 className="text-base sm:text-lg font-semibold text-navy-900">Help center</h1></>) }
 
 /* ---------------- FloatingPopup + Manager Chat ----------------
-   - ManagerChat: loads customer details by calling /chat with message and customer_id.
-   - ManagerChat will include the current session_id (if present) automatically via localStorage.
+   ManagerChat auto-loads customer info and only uses /update-decisions to save.
 */
 
 type DecisionRecord = { decision: string; reason?: string; updated_at?: string }
 
-/* ManagerChat — replaced to auto-load customer info on open + manager action buttons */
 function ManagerChat({
   custId,
   initialDecision,
@@ -628,7 +626,7 @@ function ManagerChat({
     }
   }
 
-  // --- NEW: automatically load customer data when ManagerChat opens ---
+  // automatically load customer data when ManagerChat opens
   useEffect(() => {
     const initialLoad = async () => {
       const alreadyLoaded = messages.some((m) =>
@@ -647,79 +645,7 @@ function ManagerChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [custId])
 
-  // ----- NEW: send manager action (Approve / Reject) as JSON to backend -----
-  // Sends JSON { action: "Approve" | "Reject", customer_id: "<custId>", reason: "<reason>" } to /manager-action
-  const sendManagerAction = async (action: 'Approve' | 'Reject') => {
-    setSaveStatus('sending action...')
-    try {
-      // include reason when sending action
-      const body = { action, customer_id: custId, reason }
-      const res = await fetch(`${API_BASE}/manager-action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-
-      if (!res.ok) {
-        // try fallback to update-decisions (keeps compatibility)
-        setSaveStatus(`server returned ${res.status}, attempting fallback...`)
-        const fallback = await fetch(`${API_BASE}/update-decisions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ customer_id: custId, decision: action.toUpperCase(), reason }),
-        }).catch(() => null)
-
-        if (fallback && (fallback as Response).ok) {
-          const now = new Date().toISOString()
-          setSaveStatus('saved (fallback)')
-          setUpdatedAt(now)
-          setDecision(action.toUpperCase())
-          onSavedDecision({ decision: action.toUpperCase(), reason, updated_at: now })
-          pushMessage({ id: makeId(), from: 'ai', text: `${action}: ${custId} — saved via fallback` })
-          // refresh list from disk if parent exposed fetchDecisions via closure
-          return
-        }
-        throw new Error(`manager-action failed and fallback failed (status ${res.status})`)
-      }
-
-      // parse returned JSON — backend returns the record { decision, reason, updated_at }
-      const data = await res.json().catch(() => null)
-      const rec = data && data.decision ? data.decision : null
-
-      // success — update local UI and notify
-      const now = new Date().toISOString()
-      setUpdatedAt(now)
-      setDecision(action.toUpperCase())
-      setSaveStatus(`saved (${action})`)
-
-      // prefer backend-provided record if returned
-      const recordToUse = rec ?? { decision: action.toUpperCase(), reason, updated_at: now }
-      onSavedDecision(recordToUse)
-
-      // Append a confirmation to manager chat
-      pushMessage({ id: makeId(), from: 'ai', text: `${action}: ${custId}` })
-
-      // attempt to fetch the updated decisions.json so FloatingPopup shows authoritative file contents
-      // (FloatingPopup provides fetchDecisions in its scope; if it's not accessible, parent will update via onSavedDecision wrapper)
-      try {
-        // optional: try to refresh the parent's decisions.json by asking the parent to fetch
-        // If parent exposes a function or wrapper it will do it; else this will be a best-effort noop.
-        // We attempt a direct fetch and ignore failure.
-        const decRes = await fetch(`${API_BASE}/decisions.json`, { cache: 'no-store' })
-        if (decRes.ok) {
-          // parent FloatingPopup will be updated via its own fetchDecisions or via onSavedDecision above
-        }
-      } catch {
-        // ignore minor refresh failures
-      }
-    } catch (err: any) {
-      setSaveStatus(String(err?.message ?? err))
-      pushMessage({ id: makeId(), from: 'ai', text: `Failed to send action: ${String(err?.message ?? err)}` })
-    }
-  }
-
-
-  // Save updated decision (existing flow kept as alternative)
+  // Save updated decision (only endpoint used is /update-decisions)
   const saveDecision = async () => {
     setSaveStatus('saving')
     const payload = { customer_id: custId, decision, reason }
@@ -738,58 +664,16 @@ function ManagerChat({
         onSavedDecision({ decision, reason, updated_at: now })
         return
       }
-    } catch {
-      // ignore and fallthrough to FS API
+      const txt = await res.text().catch(() => '')
+      setSaveStatus(`server error: ${res.status} ${txt}`)
+    } catch (err: any) {
+      setSaveStatus(String(err?.message ?? err))
     }
 
-    // File System Access API fallback (same as before)
-    if ('showOpenFilePicker' in window) {
-      try {
-        // @ts-ignore
-        const [fileHandle] = await (window as any).showOpenFilePicker({
-          types: [
-            {
-              description: 'JSON files',
-              accept: { 'application/json': ['.json'] },
-            },
-          ],
-          excludeAcceptAllOption: true,
-          multiple: false,
-        })
-        const file = await fileHandle.getFile()
-        const text = await file.text()
-        let parsed: any = {}
-        try {
-          parsed = JSON.parse(text)
-        } catch {
-          parsed = {}
-        }
-
-        const newObj = { ...parsed } as any
-        if (newObj && typeof newObj === 'object' && 'decisions' in newObj && typeof newObj.decisions === 'object') {
-          newObj.decisions = { ...newObj.decisions, [custId]: { decision, reason, updated_at: new Date().toISOString() } }
-        } else {
-          newObj[custId] = { decision, reason, updated_at: new Date().toISOString() }
-        }
-
-        const writable = await fileHandle.createWritable()
-        await writable.write(JSON.stringify(newObj, null, 2))
-        await writable.close()
-        setSaveStatus('saved (local file)')
-        const now = new Date().toISOString()
-        setUpdatedAt(now)
-        onSavedDecision({ decision, reason, updated_at: now })
-        return
-      } catch (err: any) {
-        setSaveStatus(`failed to save locally: ${String(err?.message ?? err)}`)
-        return
-      }
-    }
 
     setSaveStatus('No server endpoint and File System Access API not available in this browser.')
   }
 
-  /* ---------- UI (updated to include Approve/Reject buttons) ---------- */
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={onClose}></div>
@@ -842,10 +726,7 @@ function ManagerChat({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button onClick={() => sendManagerAction('Approve')} className="rounded-lg bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700">Approve</button>
-                  <button onClick={() => sendManagerAction('Reject')} className="rounded-lg bg-rose-600 px-4 py-2 text-white hover:bg-rose-700">Reject</button>
-
-                  {/* keep original Save as alternative */}
+                  {/* Save button only — calls /update-decisions */}
                   <button onClick={saveDecision} className="rounded-lg bg-primary-600 px-4 py-2 text-white hover:bg-primary-700">Save</button>
 
                   <div className="text-sm text-muted">{saveStatus ?? ''}</div>
@@ -860,8 +741,6 @@ function ManagerChat({
     </div>
   )
 }
-
-
 
 function ManagerChatComposer({ onSend, isSending }: { onSend: (text: string) => Promise<void> | void; isSending: boolean }) {
   const [value, setValue] = useState('')
@@ -883,7 +762,7 @@ function ManagerChatComposer({ onSend, isSending }: { onSend: (text: string) => 
 const FloatingPopup: React.FC = () => {
   const [open, setOpen] = useState<boolean>(false)
 
-  // credentials
+  // credentials (demo)
   const [email, setEmail] = useState<string>('manager@gmail.com')
   const [password, setPassword] = useState<string>('manager')
   const [authError, setAuthError] = useState<string | null>(null)
@@ -1104,12 +983,10 @@ const FloatingPopup: React.FC = () => {
           // close manager chat
           setOpenManagerChatFor(null);
           // re-fetch decisions.json from backend to reflect persisted file content
-          // best-effort call; fetchDecisions is in FloatingPopup scope
           fetchDecisions().catch(() => {});
         }}
         onClose={() => {
           setOpenManagerChatFor(null);
-          // also refresh list when closing (ensure latest file state)
           fetchDecisions().catch(() => {});
         }}
       />
