@@ -1,9 +1,7 @@
 {
-  "decisions": {
-    "C102": {
-      "decision": "APPROVE",
-      "reason": "Approved",
-      "updated_at": "2025-12-08T11:57:11.900174Z"
-    }
+  "C102": {
+    "decision": "APPROVE",
+    "reason": "",
+    "updated_at": "2025-12-09T06:03:44.424372Z"
   }
 }
